@@ -1,4 +1,4 @@
 # SO-Project
-Project for the Information Theory subject of the Informatics engineering course @University of Coimbra
+Project for the Operating Systems subject of the Informatics engineering course @University of Coimbra
 # Collaborators
-  - Miguel Rabuge
+  - Miguel Rabuge (https://github.com/MikeLrUC)
