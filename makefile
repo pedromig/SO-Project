@@ -19,7 +19,7 @@ ${PROG}: ${OBJS}
 
 ################ DEPENDECIES ##############
 
-ControlTower.o: ControlTower.c structs.h
+ControlTower.o: ControlTower.c structs.h 
 
 SimulationManager.o: SimulationManager.c logging.o structs.h logging.h
 

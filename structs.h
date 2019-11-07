@@ -19,5 +19,21 @@ typedef struct Shared{
     int time;
 }shared_t;
 
+typedef struct Configurations{
+    int time_units;
+
+    int takeoff_time;
+    int takeoff_gap;
+
+    int landing_time;
+    int landing_gap;
+
+    int holding_min;
+    int holding_max;
+
+    int max_departures;
+    int max_arrivals;
+
+}config_t;
 
 #endif // STRUCTS_H
