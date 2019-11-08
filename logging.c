@@ -234,7 +234,7 @@ void log_status(FILE *fp, int program_status, int terminal) {
         fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER STARTED ----->");
     } else if (program_status == CONCLUDED) {
         if (terminal)
-            fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER ENDED ----->");
+            fprintf(TERMINAL, "%s %s\n", time, "<----- SIMULATION MANAGER ENDED ----->");
         fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER ENDED ----->");
     } else {
         printf("Invalid log!...\n");

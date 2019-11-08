@@ -10,12 +10,12 @@
 #include <sys/msg.h>
 #include <signal.h>
 #include <wait.h>
+#include <fcntl.h>
 
 // Other includes
 #include "structs.h"
 #include "SimulationManager.h"
 #include "logging.h"
-
 
 #define LINE_BUF 30
 
@@ -232,19 +232,84 @@ void *timer(void *time_units) {
 int get_time(void) {
     return shm_struct->time;
 }
+//########################################  PIPE THREAD ########################################################
+void * pipe_reader(void* param_queue){
+    int time_control = 0;
+    int words, fd, n_read;
+    char buffer[BUF_SIZE], save[BUF_SIZE], *token;
+    flight_t *booker;
+    while (1) {
 
+        //wait for something in the input_pipe
+        if ((fd = open(PIPE_NAME, O_RDONLY)) < 0) {
+            printf("Cannot open pipe for reading!\n ");
+            exit(0);
+        }
+        //when "open()" unblocks, read input_pipe into the buffer
+
+        n_read = read(fd, buffer, BUF_SIZE);
+        time_control = get_time();
+        buffer[n_read - 1] = '\0';//terminate with \0
+        strcpy(save, buffer);//saved copy of the buffer
+        //print message received from pipe
+
+        log_info(log_file, "RECEIVED => ", buffer, ON);
+
+        //process the information
+        token = strtok(buffer, " ");
+        words = 0;
+
+        while (token) {
+            token = strtok(NULL, " ");
+            words++;
+        }
+
+        if (words == 6) {//DEPARTURE
+            if ((booker = check_departure(save, time_control))) {
+
+                add_queue(queue, booker);
+                printf("Departure queued!\n");
+                //log_departure(log_file, booker->name,)
+
+                print_queue(queue);
+            } else {
+                printf("Failed to book Flight!\n");
+            }
+        } else if (words == 8) {//ARRIVAL
+            if ((booker = check_arrival(save, time_control))) {
+                add_queue(queue, booker);
+                printf("Arrival queued!\n");
+
+                printf("    FLIGHT: %s\n    init: %d\n    eta: %d\n    fuel: %d\n", booker->name, booker->init_time,
+                       booker->eta, booker->fuel);
+                print_queue(queue);
+            } else {
+                printf("Failed to book Landing!\n");
+            }
+        } else {
+            printf("Bad request!\n");
+        }
+
+        //close pipe file descriptor
+        booker = NULL;
+        close(fd);
+    }
+}
 //########################################  SIGNAL HANDLER ########################################################
 
 void end_program(int signo) {
-
     signal(SIGINT, SIG_IGN);
-
-    wait(NULL);
-    shmctl(shmid, IPC_RMID, NULL);
-    pthread_join(timer_thread, NULL);
-    msgctl(msqid, IPC_RMID, NULL);
-
-    fclose(log_file);
-    log_status(log_file, CONCLUDED, ON);
-    exit(0);
+    kill(control_tower,SIGKILL); // mata filho
+    pthread_cancel(timer_thread); //cancela timer
+    pthread_cancel(pipe_thread); //cancela pipe_reader
+    shmctl(shmid, IPC_RMID, NULL);// remove shm
+    msgctl(msqid, IPC_RMID, NULL);//remove msq
+    //needed: remove linked list
+    log_status(log_file, CONCLUDED, ON);//print consola e no log que terminou
+    fclose(log_file);// fecha o log
+    exit(0);// exit do processo pai
+    //!!!!ver main do simulation manager(final) !!!!
 }
+    
+    
+    

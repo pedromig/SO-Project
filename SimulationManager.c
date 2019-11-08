@@ -13,30 +13,24 @@
 #include <pthread.h>
 #include <time.h>
 #include <signal.h>
+#include <wait.h>
 
 // Other includes
 #include "structs.h"
 #include "logging.h"
 #include "SimulationManager.h"
 #include "SimulationUtils.h"
+#include "ControlTower.h"
 
 //Global variables
 int shmid, msqid;
 shared_t *shm_struct;
-pthread_t timer_thread;
+pthread_t timer_thread, pipe_thread;
+pid_t control_tower;
+queue_t *queue;
 FILE *log_file;
 
 int main() {
-    int time_control = 0;
-    int words, fd, n_read;
-    char buffer[BUF_SIZE], save[BUF_SIZE], *token;
-
-    //signal(SIGINT, end_program);
-
-    pid_t control_tower;
-    flight_t *booker;
-    queue_t *queue;
-
     config_t configs = read_configs(CONFIG_PATH);
 
     clean_log();
@@ -63,6 +57,20 @@ int main() {
 
     shm_struct->time = 0;
 
+    log_debug(log_file, "Creating Message Queue...", ON);
+    if ((msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0777)) == -1) {
+        log_error(log_file, "Message Queue creation failed", ON);
+        exit(0);
+    }
+    log_debug(log_file, "DONE!", ON);
+
+    log_debug(log_file, "Creating Control Tower process...", ON);
+    if ((control_tower = fork()) == 0) {
+        log_debug(log_file, "Control Tower Active...", ON);
+        tower_manager();
+        exit(0);
+    }
+    log_debug(log_file, "DONE!", ON);
 
     log_debug(log_file, "Creating time Thread...", ON);
     if (pthread_create(&timer_thread, NULL, timer, (void *) (&configs.time_units))) {
@@ -71,15 +79,6 @@ int main() {
     }
     log_debug(log_file, "DONE!", ON);
 
-
-    log_debug(log_file, "Creating Message Queue...", ON);
-    if ((msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0777)) == -1) {
-        log_error(log_file, "Message Queue creation failed", ON);
-        exit(0);
-    }
-    log_debug(log_file, "DONE!", ON);
-
-
     log_debug(log_file, "Unlinking the named pipe...", ON);
     unlink(PIPE_NAME);
     if (mkfifo(PIPE_NAME, O_CREAT | O_EXCL | 0777) < 0) {
@@ -87,7 +86,6 @@ int main() {
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
-
 
     log_debug(log_file, "Creating flight waiting queue", ON);
     queue = create_queue();
@@ -99,71 +97,18 @@ int main() {
 
     //TODO: need thread for check if init == current_time
 
-    log_debug(log_file, "Creating Control Tower process...", ON);
-    if ((control_tower = fork()) == 0) {
-        log_debug(log_file, "Control Tower Active...", ON);
-        //tower_manager();
+    log_debug(log_file, "Starting Simulation...", ON);
+
+    log_debug(log_file, "Creating pipe reader Thread...", ON);
+    if (pthread_create(&pipe_thread, NULL, pipe_reader,NULL)) {
+        log_error(log_file, "Pipe reader thread creation failed", ON);
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
-
-    log_debug(log_file, "Starting Simulation...", ON);
-
-    while (1) {
-
-        //wait for something in the input_pipe
-        if ((fd = open(PIPE_NAME, O_RDONLY)) < 0) {
-            printf("Cannot open pipe for reading!\n ");
-            exit(0);
-        }
-        //when "open()" unblocks, read input_pipe into the buffer
-
-        n_read = read(fd, buffer, BUF_SIZE);
-        time_control = get_time();
-        buffer[n_read - 1] = '\0';//terminate with \0
-        strcpy(save, buffer);//saved copy of the buffer
-        //print message received from pipe
-
-        log_info(log_file, "RECEIVED => ", buffer, ON);
-
-        //process the information
-        token = strtok(buffer, " ");
-        words = 0;
-
-        while (token) {
-            token = strtok(NULL, " ");
-            words++;
-        }
-
-        if (words == 6) {//DEPARTURE
-            if (booker = check_departure(save, time_control)) {
-
-                add_queue(queue, booker);
-                printf("Departure queued!\n");
-                //log_departure(log_file, booker->name,)
-
-                print_queue(queue);
-            } else {
-                printf("Failed to book Flight!\n");
-            }
-        } else if (words == 8) {//ARRIVAL
-            if (booker = check_arrival(save, time_control)) {
-                add_queue(queue, booker);
-                printf("Arrival queued!\n");
-
-                printf("    FLIGHT: %s\n    init: %d\n    eta: %d\n    fuel: %d\n", booker->name, booker->init_time,
-                       booker->eta, booker->fuel);
-                print_queue(queue);
-            } else {
-                printf("Failed to book Landing!\n");
-            }
-        } else {
-            printf("Bad request!\n");
-        }
-
-        //close pipe file descriptor
-        booker = NULL;
-        close(fd);
-    }
-
+    
+    signal(SIGINT, end_program);// espera pelo sinal
+    wait(NULL); //fica à espera do filho. avança quando o end_program o matar
+    pthread_join(timer_thread, NULL);//fica à espera do timer. avança quando o end_program cancelar a  thread
+    pthread_join(pipe_thread, NULL);//fica à espera do pipe_reader. avança quando o end_program cancelar a thread
+    exit(0);
 }

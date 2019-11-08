@@ -8,7 +8,9 @@
 
 extern int shmid, msqid;
 extern shared_t *shm_struct;
-extern pthread_t timer_thread;
+extern pthread_t timer_thread, pipe_thread;
+extern pid_t control_tower;
+extern queue_t *queue;
 extern FILE *log_file;
 
 #endif //SIMULATION_MANAGER_H

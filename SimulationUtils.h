@@ -17,6 +17,8 @@ queue_t *create_queue();
 
 config_t read_configs(char *fname);
 
+void * pipe_reader(void* nothing);
+
 void end_program(int signo);
 
 #endif //SO_PROJECT_SIMULATIONUTILS_H
