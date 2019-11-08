@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <unistd.h>
 #include <string.h>
-#include <stdarg.h>
 #include "logging.h"
 
 /**
@@ -18,7 +16,7 @@
  *               -1 if error getting the time
  */
 
-int get_time(char *time_str) {
+int sys_time(char *time_str) {
     int str_size = 9, status = 0;
     time_t t;
     struct tm *t_info;
@@ -80,7 +78,7 @@ FILE *open_log(char *log) {
 void log_landing(FILE *fp, char *flight, char *runway, int state) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
     if (state == STARTED) {
         fprintf(fp, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "started");
     } else if (state == CONCLUDED) {
@@ -103,7 +101,7 @@ void log_landing(FILE *fp, char *flight, char *runway, int state) {
 void log_departure(FILE *fp, char *flight, char *runway, int state) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
     if (state == STARTED) {
         fprintf(fp, "%s %s %s %s %s\n", time, flight, "DEPARTURE", runway, "started");
     } else if (state == CONCLUDED) {
@@ -125,7 +123,7 @@ void log_departure(FILE *fp, char *flight, char *runway, int state) {
 void log_holding(FILE *fp, char *flight, int holding_time) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
     fprintf(fp, "%s %s %s %d\n", time, flight, "HOLDING", holding_time);
 
 }
@@ -137,12 +135,12 @@ void log_holding(FILE *fp, char *flight, int holding_time) {
  * @param cmd The command the user entered
  * @param status NEW_COMMAND(0) WRONG_COMMAMD(1)
  * @return void
- */ 
+ */
 
 void log_command(FILE *fp, char *cmd, int status) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
     if (status == NEW_COMMAND) {
         fprintf(fp, "%s %s => %s\n", time, "NEW COMMAND", cmd);
     } else if (status == WRONG_COMMAMD) {
@@ -158,12 +156,12 @@ void log_command(FILE *fp, char *cmd, int status) {
  * @param fp File pointer to the output stream
  * @param flight The flight we want to log
  * @return void
- */ 
+ */
 
 void log_emergency(FILE *fp, char *flight) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
     fprintf(fp, "%s %s %s\n", time, flight, "EMERGENCY LANDING REQUESTED");
 }
 
@@ -176,12 +174,12 @@ void log_emergency(FILE *fp, char *flight) {
  * @param flight The flight we want to log
  * @param fuel The plane fuel in fuel units
  * @return void
- */ 
+ */
 
 void log_detour(FILE *fp, char *flight, int fuel) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
     fprintf(fp, "%s %s %s => FUEL => %d\n", time, flight, "LEAVING TO OTHER AIRPORT", fuel);
 
 }
@@ -192,12 +190,12 @@ void log_detour(FILE *fp, char *flight, int fuel) {
  * program start and program end
  * @param fp File pointer to the output stream
  * @param program_status STARTED(1) CONCLUDED(0)
- */ 
+ */
 
 void log_status(FILE *fp, int program_status) {
     char time[TIME_SIZE];
 
-    get_time(time);
+    sys_time(time);
 
     if (program_status == STARTED) {
         fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER STARTED ----->");

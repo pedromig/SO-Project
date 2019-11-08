@@ -1,5 +1,5 @@
 CC = gcc
-OBJS = logging.o ControlTower.o SimulationManager.o
+OBJS = logging.o ControlTower.o SimulationManager.o SimulationUtils.o
 PROG = airport
 FLAGS = -Wall -O -g -pthread
 MATH = -lm
@@ -21,7 +21,9 @@ ${PROG}: ${OBJS}
 
 ControlTower.o: ControlTower.c structs.h 
 
-SimulationManager.o: SimulationManager.c logging.o structs.h logging.h
+SimulationManager.o: SimulationManager.c SimulationManager.h SimulationUtils.o logging.o structs.h logging.h
+
+SimulationUtils.o: SimulationUtils.c SimulationUtils.h structs.h
 
 logging.o: logging.c logging.h
 

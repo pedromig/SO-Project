@@ -60,6 +60,7 @@ int get_time(){
     return shm_struct->tempo;
 }
 //parsing/queue pre-setup
+
 int isnumber(char* string);
 flight_t * check_arrival(char* buffer,int current_time);
 flight_t * check_departure(char* buffer,int current_time);

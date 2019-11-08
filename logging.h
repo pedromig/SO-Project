@@ -1,7 +1,6 @@
 #ifndef LOGGING_H
 #define LOGGING_H
 
-
 #define LOG_PATH "log.txt"
 #define TIME_SIZE 9
 #define CONCLUDED 0
