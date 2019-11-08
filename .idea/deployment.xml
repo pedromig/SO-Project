@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData">
+    <serverData>
+      <paths name="Ubuntu 18.04.3 (a3f218df-c029-46c5-ac8e-0415ca47282f)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/tmp.Vl2sgOyUNS" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>

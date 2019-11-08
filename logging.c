@@ -4,6 +4,11 @@
 #include <string.h>
 #include "logging.h"
 
+#define YELLOW   "\x1B[33m"
+#define RED   "\x1B[31m"
+#define GREEN  "\x1B[32m"
+#define RESET "\x1B[0m"
+
 /**
  * This function gets the current time of the system
  * and formats the time placing it in a string passed
@@ -52,7 +57,8 @@ void clean_log() {
  * append mode.
  * @param log The log file name or path
  * @return fp A file pointer to the log file
- *            we opened 
+ *            we opened
+ *
  */
 
 FILE *open_log(char *log) {
@@ -72,16 +78,21 @@ FILE *open_log(char *log) {
  * @param flight The flight we want to log
  * @param runway The runway associated with the flight
  * @param state CONCLUDED(1) or STARTED(0)
+ * @param Terminal output ON(1) OFF(0)
  * @return void
  */
 
-void log_landing(FILE *fp, char *flight, char *runway, int state) {
+void log_landing(FILE *fp, char *flight, char *runway, int state, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
     if (state == STARTED) {
+        if (terminal)
+            fprintf(TERMINAL, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "started");
         fprintf(fp, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "started");
     } else if (state == CONCLUDED) {
+        if (terminal)
+            fprintf(fp, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "concluded");
         fprintf(fp, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "concluded");
     } else {
         fprintf(fp, "Invalid log!...\n");
@@ -95,16 +106,21 @@ void log_landing(FILE *fp, char *flight, char *runway, int state) {
  * @param flight The flight we want to log
  * @param runway The runway associated with the flight
  * @param state CONCLUDED(0) or STARTED(1)
+ * @param Terminal output ON(1) OFF(0)
  * @return void
  */
 
-void log_departure(FILE *fp, char *flight, char *runway, int state) {
+void log_departure(FILE *fp, char *flight, char *runway, int state, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
     if (state == STARTED) {
+        if (terminal)
+            fprintf(TERMINAL, "%s %s %s %s %s\n", time, flight, "DEPARTURE", runway, "started");
         fprintf(fp, "%s %s %s %s %s\n", time, flight, "DEPARTURE", runway, "started");
     } else if (state == CONCLUDED) {
+        if (terminal)
+            fprintf(TERMINAL, "%s %s %s %s %s\n", time, flight, "DEPARTURE", runway, "concluded");
         fprintf(fp, "%s %s %s %s %s\n", time, flight, "DEPARTURE", runway, "concluded");
     } else {
         fprintf(fp, "Invalid log!...\n");
@@ -117,13 +133,16 @@ void log_departure(FILE *fp, char *flight, char *runway, int state) {
  * @param flight The flight we want to log
  * @param holding_time Time the flight will be put on hold
  *                     waiting to land
+ * @param Terminal output ON(1) OFF(0)
  * @return void
  */
 
-void log_holding(FILE *fp, char *flight, int holding_time) {
+void log_holding(FILE *fp, char *flight, int holding_time, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
+    if (terminal)
+        fprintf(TERMINAL, "%s %s %s %d\n", time, flight, "HOLDING", holding_time);
     fprintf(fp, "%s %s %s %d\n", time, flight, "HOLDING", holding_time);
 
 }
@@ -134,16 +153,22 @@ void log_holding(FILE *fp, char *flight, int holding_time) {
  * @param fp File pointer to the output stream
  * @param cmd The command the user entered
  * @param status NEW_COMMAND(0) WRONG_COMMAMD(1)
+ * @param Terminal output ON(1) OFF(0)
  * @return void
  */
 
-void log_command(FILE *fp, char *cmd, int status) {
+void log_command(FILE *fp, char *cmd, int status, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
+
     if (status == NEW_COMMAND) {
+        if (terminal)
+            fprintf(TERMINAL, "%s %s => %s\n", time, "NEW COMMAND", cmd);
         fprintf(fp, "%s %s => %s\n", time, "NEW COMMAND", cmd);
     } else if (status == WRONG_COMMAMD) {
+        if (terminal)
+            fprintf(fp, "%s %s => %s\n", time, "WRONG COMMAND", cmd);
         fprintf(fp, "%s %s => %s\n", time, "WRONG COMMAND", cmd);
     } else {
         fprintf(fp, "Invalid log!...\n");
@@ -155,13 +180,16 @@ void log_command(FILE *fp, char *cmd, int status) {
  * This fuction logs a emergency flight
  * @param fp File pointer to the output stream
  * @param flight The flight we want to log
+ * @param Terminal output ON(1) OFF(0)
  * @return void
  */
 
-void log_emergency(FILE *fp, char *flight) {
+void log_emergency(FILE *fp, char *flight, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
+    if (terminal)
+        fprintf(TERMINAL, "%s %s %s\n", time, flight, "EMERGENCY LANDING REQUESTED");
     fprintf(fp, "%s %s %s\n", time, flight, "EMERGENCY LANDING REQUESTED");
 }
 
@@ -173,15 +201,17 @@ void log_emergency(FILE *fp, char *flight) {
  * @param fp File pointer to the output stream
  * @param flight The flight we want to log
  * @param fuel The plane fuel in fuel units
+ * @param Terminal output ON(1) OFF(0)
  * @return void
  */
 
-void log_detour(FILE *fp, char *flight, int fuel) {
+void log_detour(FILE *fp, char *flight, int fuel, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
+    if (terminal)
+        fprintf(TERMINAL, "%s %s %s => FUEL => %d\n", time, flight, "LEAVING TO OTHER AIRPORT", fuel);
     fprintf(fp, "%s %s %s => FUEL => %d\n", time, flight, "LEAVING TO OTHER AIRPORT", fuel);
-
 }
 
 /**
@@ -190,19 +220,72 @@ void log_detour(FILE *fp, char *flight, int fuel) {
  * program start and program end
  * @param fp File pointer to the output stream
  * @param program_status STARTED(1) CONCLUDED(0)
+ * @param Terminal output ON(1) OFF(0)
  */
 
-void log_status(FILE *fp, int program_status) {
+void log_status(FILE *fp, int program_status, int terminal) {
     char time[TIME_SIZE];
 
     sys_time(time);
 
     if (program_status == STARTED) {
+        if (terminal)
+            fprintf(TERMINAL, "%s %s\n", time, "<----- SIMULATION MANAGER STARTED ----->");
         fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER STARTED ----->");
     } else if (program_status == CONCLUDED) {
+        if (terminal)
+            fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER ENDED ----->");
         fprintf(fp, "%s %s\n", time, "<----- SIMULATION MANAGER ENDED ----->");
     } else {
         printf("Invalid log!...\n");
     }
+}
 
+/**
+ * This function logs the program error messages
+ * @param fp File pointer to the output stream
+ * @param error_msg The message for the error
+ * @param Terminal output ON(1) OFF(0)
+ */
+
+void log_error(FILE *fp, char *error_msg, int terminal) {
+    char time[TIME_SIZE];
+
+    sys_time(time);
+    if (terminal)
+        fprintf(TERMINAL, "%s %sERROR:%s %s\n", time, RED, RESET, error_msg);
+    fprintf(fp, "%s ERROR: %s\n", time, error_msg);
+}
+
+/**
+ * This function logs the program debug messages
+ * @param fp File pointer to the output stream
+ * @param debug_msg The message for the debug
+ * @param Terminal output ON(1) OFF(0)
+ */
+
+void log_debug(FILE *fp, char *debug_msg, int terminal) {
+    char time[TIME_SIZE];
+
+    sys_time(time);
+    if (terminal)
+        fprintf(TERMINAL, "%s DEBUG: %s\n", time, debug_msg);
+    fprintf(fp, "%s DEBUG: %s\n", time, debug_msg);
+}
+
+/**
+ * This function logs the program debug messages
+ * @param fp File pointer to the output stream
+ * @param debug_msg Additional info (it can be NULL)
+ * @param info_msg The message you want to log
+ * @param Terminal output ON(1) OFF(0)
+ */
+
+void log_info(FILE *fp, char *info_description, char *info_msg, int terminal) {
+    char time[TIME_SIZE];
+
+    sys_time(time);
+    if (terminal)
+        fprintf(TERMINAL, "%s INFO: %s %s\n", time, info_description, info_msg);
+    fprintf(fp, "%s INFO: %s %s\n", time, info_description, info_msg);
 }

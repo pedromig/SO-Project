@@ -3,10 +3,19 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <signal.h>
+#include <wait.h>
 
 // Other includes
 #include "structs.h"
 #include "SimulationManager.h"
+#include "logging.h"
+
 
 #define LINE_BUF 30
 
@@ -57,14 +66,11 @@ config_t read_configs(char *fname) {
 
 //######################################## FLIGHT LIST/QUEUE #####################################################
 
-queue_t *make_queue() {
+queue_t *create_queue() {
     queue_t *queue = (queue_t *) malloc(sizeof(queue_t));
     if (queue) {
         queue->flight = NULL;
         queue->next = NULL;
-    } else {
-        perror("Queue creation failed\n");
-        exit(0);
     }
     return queue;
 }
@@ -212,13 +218,33 @@ flight_t *check_departure(char *buffer, int current_time) {
 void *timer(void *time_units) {
     int time = *((int *) time_units);
     time = time * 1000;
+    char log_str[BUF_SIZE];
+
     while (1) {
         shm_struct->time++;
         usleep(time);
-        printf("time: %d\n", shm_struct->time);
+
+        sprintf(log_str, "Time: %d", shm_struct->time);
+        log_debug(log_file, log_str, ON);
     }
 }
 
 int get_time(void) {
     return shm_struct->time;
+}
+
+//########################################  SIGNAL HANDLER ########################################################
+
+void end_program(int signo) {
+
+    signal(SIGINT, SIG_IGN);
+
+    wait(NULL);
+    shmctl(shmid, IPC_RMID, NULL);
+    pthread_join(timer_thread, NULL);
+    msgctl(msqid, IPC_RMID, NULL);
+
+    fclose(log_file);
+    log_status(log_file, CONCLUDED, ON);
+    exit(0);
 }

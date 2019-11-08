@@ -13,8 +13,10 @@ void add_queue(queue_t *head, flight_t *flight);
 
 void print_queue(queue_t *head);
 
-queue_t *make_queue();
+queue_t *create_queue();
 
 config_t read_configs(char *fname);
+
+void end_program(int signo);
 
 #endif //SO_PROJECT_SIMULATIONUTILS_H

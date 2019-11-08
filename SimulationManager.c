@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <time.h>
+#include <signal.h>
 
 // Other includes
 #include "structs.h"
@@ -23,12 +24,14 @@
 int shmid, msqid;
 shared_t *shm_struct;
 pthread_t timer_thread;
-
+FILE *log_file;
 
 int main() {
     int time_control = 0;
     int words, fd, n_read;
     char buffer[BUF_SIZE], save[BUF_SIZE], *token;
+
+    //signal(SIGINT, end_program);
 
     pid_t control_tower;
     flight_t *booker;
@@ -36,74 +39,102 @@ int main() {
 
     config_t configs = read_configs(CONFIG_PATH);
 
-    FILE *log_file = open_log(LOG_PATH);
     clean_log();
-    log_status(log_file, STARTED);
+
+    log_file = open_log(LOG_PATH);
+    log_status(log_file, STARTED, ON);
 
 
-    //shared memory
+    log_debug(log_file, "Creating shared memory...", ON);
     if ((shmid = shmget(IPC_PRIVATE, sizeof(shared_t), IPC_CREAT | 0777)) < 0) {
-        printf("Erro: shmget!\n");
+        log_error(log_file, "Shared memory allocation failed", ON);
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
+
+
+    log_debug(log_file, "Attaching shared memory...", ON);
     shm_struct = (shared_t *) shmat(shmid, NULL, 0);
     if (shm_struct == (shared_t *) -1) {
-        printf("Erro: shmat!\n");
+        log_error(log_file, "Shared memory attach failed", ON);
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
 
-    //start program timer
     shm_struct->time = 0;
+
+
+    log_debug(log_file, "Creating time Thread...", ON);
     if (pthread_create(&timer_thread, NULL, timer, (void *) (&configs.time_units))) {
-        printf("Timer initialization failed!\n");
+        log_error(log_file, "Timer thread creation failed", ON);
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
 
-    //message queue
+
+    log_debug(log_file, "Creating Message Queue...", ON);
     if ((msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0777)) == -1) {
-        printf("Erro: msgget!\n");
+        log_error(log_file, "Message Queue creation failed", ON);
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
 
-    //named pipe
+
+    log_debug(log_file, "Unlinking the named pipe...", ON);
     unlink(PIPE_NAME);
     if (mkfifo(PIPE_NAME, O_CREAT | O_EXCL | 0777) < 0) {
-        printf("Erro: Pipe!");
+        log_error(log_file, "Named Pipe creation failed", ON);
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
 
-    //queue initialization
-    queue = make_queue();
 
-    //need thread for check if init == current_time
-    //control_tower process creation
+    log_debug(log_file, "Creating flight waiting queue", ON);
+    queue = create_queue();
+    if (!queue) {
+        log_error(log_file, "Flight queue creation failed", ON);
+        exit(0);
+    }
+    log_debug(log_file, "DONE!", ON);
+
+    //TODO: need thread for check if init == current_time
+
+    log_debug(log_file, "Creating Control Tower process...", ON);
     if ((control_tower = fork()) == 0) {
+        log_debug(log_file, "Control Tower Active...", ON);
         //tower_manager();
-        printf("control tower activated!\n");
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
 
-    //simulator
+    log_debug(log_file, "Starting Simulation...", ON);
+
     while (1) {
+
         //wait for something in the input_pipe
         if ((fd = open(PIPE_NAME, O_RDONLY)) < 0) {
             printf("Cannot open pipe for reading!\n ");
             exit(0);
         }
         //when "open()" unblocks, read input_pipe into the buffer
+
         n_read = read(fd, buffer, BUF_SIZE);
         time_control = get_time();
         buffer[n_read - 1] = '\0';//terminate with \0
         strcpy(save, buffer);//saved copy of the buffer
         //print message received from pipe
-        printf("RECEIVED => %s\n", buffer);
+
+        log_info(log_file, "RECEIVED => ", buffer, ON);
+
         //process the information
         token = strtok(buffer, " ");
         words = 0;
+
         while (token) {
             token = strtok(NULL, " ");
             words++;
         }
+
         if (words == 6) {//DEPARTURE
             if (booker = check_departure(save, time_control)) {
 
@@ -119,6 +150,7 @@ int main() {
             if (booker = check_arrival(save, time_control)) {
                 add_queue(queue, booker);
                 printf("Arrival queued!\n");
+
                 printf("    FLIGHT: %s\n    init: %d\n    eta: %d\n    fuel: %d\n", booker->name, booker->init_time,
                        booker->eta, booker->fuel);
                 print_queue(queue);
@@ -128,6 +160,7 @@ int main() {
         } else {
             printf("Bad request!\n");
         }
+
         //close pipe file descriptor
         booker = NULL;
         close(fd);

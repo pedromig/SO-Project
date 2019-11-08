@@ -6,7 +6,9 @@
 #define CONFIG_PATH "config.txt"
 #define BUF_SIZE 1024
 
+extern int shmid, msqid;
 extern shared_t *shm_struct;
-extern int shmid;
+extern pthread_t timer_thread;
+extern FILE *log_file;
 
 #endif //SIMULATION_MANAGER_H
