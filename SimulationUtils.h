@@ -25,4 +25,12 @@ void end_program(int signo);
 
 void delete_queue(queue_t *head);
 
+void* arrivals_creation(void* nothing);
+
+void* departures_creation(void* nothing);
+
+void* departure_execution(void* departure_id);
+
+void* arrival_execution(void* arrival_id);
+  
 #endif //SO_PROJECT_SIMULATIONUTILS_H

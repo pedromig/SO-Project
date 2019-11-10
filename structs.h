@@ -28,15 +28,17 @@ typedef union Flight {
 } flight_t;
 
 typedef struct Queue {
+    int type;
     flight_t flight;
     struct Queue *next;
-    int type;
 } queue_t;
 
 // Structure shared in memory
 typedef struct Shared {
     // TODO: Statistics
     int time;
+    int * arrivals_id;
+    int * departures_id;
 } shared_t;
 
 // Struct containing the configurations

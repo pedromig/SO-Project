@@ -16,6 +16,7 @@
 // Other includes
 #include "structs.h"
 #include "SimulationManager.h"
+#include "SimulationUtils.h"
 #include "logging.h"
 
 #define LINE_BUF 30
@@ -135,7 +136,7 @@ void add_departure(queue_t *head, departure_t *flight) {
     queue_t *current = head->next;
     queue_t *new = (queue_t *) malloc(sizeof(queue_t));
 
-    while (current && (current->flight.a_flight->init < flight->init)) {
+    while (current && (current->flight.d_flight->init < flight->init)) {
         current = current->next;
         last = last->next;
     }
@@ -168,12 +169,13 @@ void find_flight(queue_t *head, queue_t **before, queue_t **current, int init) {
     }
 }
 
-void remove_flight(queue_t *head, int init) {
+void remove_flight(queue_t *head, int init, flight_t* estrutura) {
     queue_t *current;
     queue_t *before;
 
     find_flight(head, &before, &current, init);
     if (current != NULL) {
+        *estrutura = current->flight;
         before->next = current->next;
         free(current);
     }
@@ -199,7 +201,7 @@ void print_queue(queue_t *head) {
 arrival_t *load_arrival_flight(char *name, const int *params, int current_time) {
     arrival_t *new_flight = (arrival_t *) malloc(sizeof(arrival_t));
 
-    if (new_flight && params[0] >= current_time && params[1] <= params[2]) {
+    if (new_flight && params[0] > current_time && params[1] <= params[2]) {
         strcpy(new_flight->name, name);
         new_flight->init = params[0];
         new_flight->eta = params[1];
@@ -269,7 +271,7 @@ departure_t *check_departure(char *buffer, int current_time) {
         return NULL;
     } else {
         init = atoi(aux);
-        if (init < current_time) {
+        if (init <= current_time) {
             return NULL;
         }
     }
@@ -284,7 +286,7 @@ departure_t *check_departure(char *buffer, int current_time) {
         return NULL;
     } else {
         takeoff = atoi(aux);
-        if ((takeoff < current_time) || (takeoff <= init)) {
+        if ((takeoff < current_time) || (takeoff <= init)) {//tirar ((takeoff < current_time) || )?
             return NULL;
         }
     }
@@ -305,11 +307,13 @@ void *timer(void *time_units) {
     char log_str[BUF_SIZE];
 
     while (1) {
-        shm_struct->time++;
         usleep(time);
-
+        shm_struct->time++;
         sprintf(log_str, "Time: %d", shm_struct->time);
         log_debug(log_file, log_str, ON);
+        print_queue(departure_queue);
+        print_queue(arrival_queue);
+        pthread_cond_broadcast(&time_refresher);
     }
 }
 
@@ -346,10 +350,10 @@ void *pipe_reader(void *param_queue) {
 
             if ((d_booker = check_departure(buffer, time_control))) {
 
-                add_departure(arrival_queue, d_booker);
+                add_departure(departure_queue, d_booker);
                 log_command(log_file, buffer, NEW_COMMAND, ON);
 
-                print_queue(arrival_queue);
+                print_queue(departure_queue);
             } else {
                 log_command(log_file, buffer, WRONG_COMMAND, ON);
             }
@@ -357,10 +361,10 @@ void *pipe_reader(void *param_queue) {
         } else if (words == 8) {  // ARRIVAL
 
             if ((a_booker = check_arrival(buffer, time_control))) {
-                add_arrival(departure_queue, a_booker);
+                add_arrival(arrival_queue, a_booker);
                 log_command(log_file, buffer, NEW_COMMAND, ON);
 
-                print_queue(departure_queue);
+                print_queue(arrival_queue);
             } else {
                 log_command(log_file, buffer, WRONG_COMMAND, ON);
             }
@@ -370,8 +374,79 @@ void *pipe_reader(void *param_queue) {
         close(fd);
     }
 }
-//########################################  SIGNAL HANDLER ########################################################
+//########################################  INIT QUEUE HANDLER ########################################################
+void* arrivals_creation(void* nothing){
+    int time;
+    queue_t *current;
+    flight_t to_fly;
+    int air_counter = 0;
+    while(1){
+        
+        pthread_mutex_lock(&mutex_arrivals);
 
+        pthread_cond_wait(&time_refresher,&mutex_arrivals);
+        current = arrival_queue->next;
+        time = get_time();
+       
+        while(current && (current->flight.a_flight->init == time)){
+            remove_flight(arrival_queue,current->flight.a_flight->init,&to_fly);
+            shm_struct->arrivals_id[air_counter] = air_counter;
+            if(pthread_create(&air_arrivals[air_counter],NULL,arrival_execution,&(shm_struct->arrivals_id[air_counter]))){
+                log_error(log_file, "Arrival thread creation failed", ON);
+                exit(0);
+            }
+            //shm_struct->arrivals_id[air_counter] = 0;
+            air_counter++;
+            current = current->next;
+        } 
+        pthread_mutex_unlock(&mutex_arrivals);
+    }
+}
+
+void* departures_creation(void* nothing){
+    int time;
+    queue_t *current;
+    flight_t to_fly;
+    int air_counter = 0;
+    while(1){
+        
+        pthread_mutex_lock(&mutex_departures);
+
+        pthread_cond_wait(&time_refresher,&mutex_departures);
+        current = departure_queue->next;
+        time = get_time();
+       
+        while(current && (current->flight.d_flight->init == time)){
+            remove_flight(departure_queue,current->flight.d_flight->init,&to_fly);
+            shm_struct->departures_id[air_counter] = air_counter;
+            if(pthread_create(&air_departures[air_counter],NULL,departure_execution,&(shm_struct->departures_id[air_counter]))){
+                log_error(log_file, "Departure thread creation failed", ON);
+                exit(0);
+            }
+            //shm_struct->departures_id[air_counter] = 0;
+            air_counter++;
+            current = current->next;
+        } 
+        pthread_mutex_unlock(&mutex_departures);
+    }
+}
+//########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
+void* departure_execution(void* departure_id){
+    int id = *((int *) departure_id);
+    printf("Ready to Fly! Departure_ID: %d\n",id);
+    //msq ready msg
+    pthread_cancel(pthread_self());
+    pthread_join(pthread_self(),NULL);
+}
+
+void* arrival_execution(void* arrival_id){
+    int id = *((int *) arrival_id);
+    printf("Ready to land! Arrival_ID: %d\n",id);
+    //msq ready msg
+    pthread_cancel(pthread_self());
+    pthread_join(pthread_self(),NULL);
+}
+//########################################  SIGNAL HANDLER ########################################################
 void end_program(int signo) {
     signal(SIGINT, SIG_IGN);
 
@@ -379,17 +454,26 @@ void end_program(int signo) {
 
     pthread_cancel(timer_thread);
     pthread_cancel(pipe_thread);
+    pthread_cancel(departures_handler);
+    pthread_cancel(arrivals_handler);
+
+    free(shm_struct->arrivals_id);
+    free(shm_struct->departures_id);
 
     shmctl(shmid, IPC_RMID, NULL);
     msgctl(msqid, IPC_RMID, NULL);
+
+    free(air_arrivals);
+    free(air_departures);
 
     delete_queue(arrival_queue);
     delete_queue(departure_queue);
 
     log_status(log_file, CONCLUDED, ON);
     fclose(log_file);
-
+    sem_unlink("WAIT_TOWER");
     sem_unlink("LOG_MUTEX");
+    sem_close(tower_mutex);
     sem_close(mutex_log);
 
     exit(0);
