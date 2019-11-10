@@ -22,21 +22,33 @@
 #include "SimulationUtils.h"
 #include "ControlTower.h"
 
+
 //Global variables
 int shmid, msqid;
 shared_t *shm_struct;
 pthread_t timer_thread, pipe_thread;
 pid_t control_tower;
-queue_t *queue;
 FILE *log_file;
+sem_t *mutex_log;
+queue_t *arrival_queue;
+queue_t *departure_queue;
+
 
 int main() {
-    config_t configs = read_configs(CONFIG_PATH);
+    config_t configs;
 
-    clean_log();
 
-    log_file = open_log(LOG_PATH);
+    sem_unlink("LOG_MUTEX");
+    mutex_log = sem_open("LOG_MUTEX", O_CREAT | O_EXCL, 0766, 1);
+    if (mutex_log == (sem_t *) -1) {
+        perror("Log file LOG_MUTEX creation failed");
+        exit(0);
+    }
+
+    log_file = open_log(LOG_PATH, ON);
     log_status(log_file, STARTED, ON);
+
+    configs = read_configs(CONFIG_PATH);
 
 
     log_debug(log_file, "Creating shared memory...", ON);
@@ -88,27 +100,31 @@ int main() {
     log_debug(log_file, "DONE!", ON);
 
     log_debug(log_file, "Creating flight waiting queue", ON);
-    queue = create_queue();
-    if (!queue) {
+    arrival_queue = create_queue(ARRIVAL_FLIGHT);
+    departure_queue = create_queue(DEPARTURE_FLIGHT);
+
+    if (!arrival_queue || !departure_queue) {
         log_error(log_file, "Flight queue creation failed", ON);
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
 
-    //TODO: need thread for check if init == current_time
+    //TODO: need thread to check if init == current_time
 
     log_debug(log_file, "Starting Simulation...", ON);
 
     log_debug(log_file, "Creating pipe reader Thread...", ON);
-    if (pthread_create(&pipe_thread, NULL, pipe_reader,NULL)) {
+    if (pthread_create(&pipe_thread, NULL, pipe_reader, NULL)) {
         log_error(log_file, "Pipe reader thread creation failed", ON);
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
-    
-    signal(SIGINT, end_program);// espera pelo sinal
-    wait(NULL); //fica à espera do filho. avança quando o end_program o matar
-    pthread_join(timer_thread, NULL);//fica à espera do timer. avança quando o end_program cancelar a  thread
-    pthread_join(pipe_thread, NULL);//fica à espera do pipe_reader. avança quando o end_program cancelar a thread
+
+
+    signal(SIGINT, end_program);
+
+    pthread_join(timer_thread, NULL);
+    pthread_join(pipe_thread, NULL);
+
     exit(0);
 }

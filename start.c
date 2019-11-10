@@ -157,7 +157,7 @@ int main(){
         n_read = read(fd,buffer,BUF_SIZE);
         time_control = get_time();
         buffer[n_read-1] = '\0';//terminate with \0
-        strcpy(save,buffer);//saved copy of the buffer
+        strcpy(save,buffer);//saved copy of tçhe buffer
         //print message received from pipe
         printf("RECEIVED => %s\n",buffer);
         //process the information

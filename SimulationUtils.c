@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <wait.h>
 #include <fcntl.h>
+#include <semaphore.h>
 
 // Other includes
 #include "structs.h"
@@ -18,6 +19,30 @@
 #include "logging.h"
 
 #define LINE_BUF 30
+
+
+int isnumber(char *string) {
+    int status = 1;
+    int i, len = (int) strlen(string);
+    for (i = 0; i < len && status != 0; i++)
+        if (!isdigit(string[i]))
+            status = 0;
+    return status;
+}
+
+int wordCount(char *string) {
+    int words = 0;
+    char str[strlen(string) + 1];
+    char *token, delimiter[2] = " ";
+
+    strcpy(str, string);
+    token = strtok(str, delimiter);
+    while (token) {
+        words++;
+        token = strtok(NULL, delimiter);
+    }
+    return words;
+}
 
 //######################################## CONFIGURATIONS ###################################################
 
@@ -42,18 +67,20 @@ config_t read_configs(char *fname) {
     int array[9];
     char line[LINE_BUF], *token, delimiter[3] = ", ";
 
+    log_debug(log_file, "Opening Configurations file...", ON);
     FILE *fp = fopen(fname, "r");
 
     if (!fp) {
-        perror("Failed to open configuration file!");
+        log_error(log_file, "Failed to open configuration file!", ON);
         exit(0);
     }
+    log_debug(log_file, "DONE!", ON);
 
     while (fgets(line, LINE_BUF, fp) != NULL) {
         token = strtok(line, delimiter);
         while (token != NULL) {
             if (i > 9) {
-                printf("Error reading file!\n");
+                log_debug(log_file, "Error occurred while reading the file!", ON);
                 exit(0);
             }
             array[i++] = atoi(token);
@@ -66,77 +93,134 @@ config_t read_configs(char *fname) {
 
 //######################################## FLIGHT LIST/QUEUE #####################################################
 
-queue_t *create_queue() {
-    queue_t *queue = (queue_t *) malloc(sizeof(queue_t));
-    if (queue) {
-        queue->flight = NULL;
-        queue->next = NULL;
+queue_t *create_queue(int type) {
+    queue_t *head = (queue_t *) malloc(sizeof(queue_t));
+    if (head) {
+        head->flight.a_flight = NULL;
+        head->flight.d_flight = NULL;
+        head->next = NULL;
+        head->type = type;
     }
-    return queue;
+    return head;
 }
 
-void add_queue(queue_t *head, flight_t *flight) {
+void delete_queue(queue_t *head) {
+    queue_t *current;
+    while (head != NULL) {
+        current = head;
+        head = head->next;
+        free(current);
+    }
+    free(head);
+}
+
+void add_arrival(queue_t *head, arrival_t *flight) {
     queue_t *last = head;
     queue_t *current = head->next;
-    queue_t *new;
-    while (current && (current->flight->init_time < flight->init_time)) {
+    queue_t *new = (queue_t *) malloc(sizeof(queue_t));
+
+    while (current && (current->flight.a_flight->init < flight->init)) {
         current = current->next;
         last = last->next;
     }
-    new = malloc(sizeof(queue_t));
-    new->flight = flight;
+    new->flight.a_flight = flight;
+    new->type = ARRIVAL_FLIGHT;
+
     new->next = current;
     last->next = new;
 }
 
+void add_departure(queue_t *head, departure_t *flight) {
+    queue_t *last = head;
+    queue_t *current = head->next;
+    queue_t *new = (queue_t *) malloc(sizeof(queue_t));
+
+    while (current && (current->flight.a_flight->init < flight->init)) {
+        current = current->next;
+        last = last->next;
+    }
+    new->flight.d_flight = flight;
+    new->type = DEPARTURE_FLIGHT;
+
+    new->next = current;
+    last->next = new;
+}
+
+void find_flight(queue_t *head, queue_t **before, queue_t **current, int init) {
+    *before = head;
+    *current = head->next;
+    if (head->type == ARRIVAL_FLIGHT) {
+        while ((*current) && (*current)->flight.a_flight->init != init) {
+            *before = *current;
+            *current = (*current)->next;
+        }
+        if ((*current) && (*current)->flight.a_flight->init != init) {
+            *current = NULL;
+        }
+    } else {
+        while ((*current) && (*current)->flight.d_flight->init != init) {
+            *before = *current;
+            *current = (*current)->next;
+        }
+        if ((*current) && (*current)->flight.d_flight->init != init) {
+            *current = NULL;
+        }
+    }
+}
+
+void remove_flight(queue_t *head, int init) {
+    queue_t *current;
+    queue_t *before;
+
+    find_flight(head, &before, &current, init);
+    if (current != NULL) {
+        before->next = current->next;
+        free(current);
+    }
+}
+
 void print_queue(queue_t *head) {
     queue_t *current = head->next;
-    char *type[2];
-    type[0] = "DEPARTURE";
-    type[1] = "ARRIVAL";
-    printf("Booked Flights:\n");
+    char *type[2] = {"DEPARTURE", "ARRIVAL"};
+    printf("\n\t\t<-------- Booked Flights -------->\n");
     while (current) {
-        printf("[%s init:%d]\n", type[current->flight->type], current->flight->init_time);
+        if (current->type == ARRIVAL_FLIGHT)
+            printf("\t\t\t[%s init:%d]\n", type[ARRIVAL_FLIGHT], current->flight.a_flight->init);
+        else
+            printf("\t\t\t[%s init:%d]\n", type[DEPARTURE_FLIGHT], current->flight.d_flight->init);
         current = current->next;
     }
+    printf("\t\t<-------------------------------->\n\n");
+
 }
 
 //############################################ COMMAND PARSING #################################################
 
-int isnumber(char *string) {
-    int status = 1;
-    int i, len = (int) strlen(string);
-    for (i = 0; i < len && status != 0; i++)
-        if (!isdigit(string[i]))
-            status = 0;
-    return status;
-}
-
-flight_t *load_flight_struct(char *name, const int *params, int current_time) {
-    flight_t *new_flight = (flight_t *) malloc(sizeof(flight_t));
+arrival_t *load_arrival_flight(char *name, const int *params, int current_time) {
+    arrival_t *new_flight = (arrival_t *) malloc(sizeof(arrival_t));
 
     if (new_flight && params[0] >= current_time && params[1] <= params[2]) {
         strcpy(new_flight->name, name);
-        new_flight->init_time = params[0];
+        new_flight->init = params[0];
         new_flight->eta = params[1];
         new_flight->fuel = params[2];
-        new_flight->type = ARRIVAL_FLIGHT;
-        new_flight->takeoff_time = -1;
     } else {
         new_flight = NULL;
     }
     return new_flight;
 }
 
-flight_t *check_arrival(char *buffer, int current_time) {
-    char *name, *token, delimiter[2] = " ";
+arrival_t *check_arrival(char *buffer, int current_time) {
+    char *name = NULL, *token, delimiter[2] = " ";
     char *dict[3] = {"init", "eta", "fuel"};
+    char string[strlen(buffer) + 1];
     int values[3];
     int i = 0, j = 0;
     int correct = 1;
 
+    strcpy(string, buffer);
 
-    token = strtok(buffer, delimiter);
+    token = strtok(string, delimiter);
     if (!strcmp(token, "ARRIVAL")) {
         name = strtok(NULL, delimiter);
     } else {
@@ -155,17 +239,20 @@ flight_t *check_arrival(char *buffer, int current_time) {
         token = strtok(NULL, delimiter);
     }
 
-    return correct ? load_flight_struct(name, values, current_time) : NULL;
+    return correct ? load_arrival_flight(name, values, current_time) : NULL;
 }
 
-flight_t *check_departure(char *buffer, int current_time) {
+departure_t *check_departure(char *buffer, int current_time) {
     char *aux;
     char *keyword;
     char *flight_code;
     int init, takeoff;
-    flight_t *flight;
+    departure_t *flight;
+    char string[strlen(buffer) + 1];
+    strcpy(string, buffer);
+
     //DEPARTURE
-    keyword = strtok(buffer, " ");
+    keyword = strtok(string, " ");
     if (strcmp(keyword, "DEPARTURE")) {
         return NULL;
     }
@@ -203,12 +290,9 @@ flight_t *check_departure(char *buffer, int current_time) {
     }
     flight = malloc(sizeof(flight_t));
 
-    flight->type = DEPARTURE_FLIGHT;
     strcpy(flight->name, flight_code);
-    flight->init_time = init;
-    flight->takeoff_time = takeoff;
-    flight->eta = -1;
-    flight->fuel = -1;
+    flight->init = init;
+    flight->takeoff = takeoff;
 
     return flight;
 }
@@ -232,66 +316,57 @@ void *timer(void *time_units) {
 int get_time(void) {
     return shm_struct->time;
 }
+
 //########################################  PIPE THREAD ########################################################
-void * pipe_reader(void* param_queue){
+
+void *pipe_reader(void *param_queue) {
     int time_control = 0;
     int words, fd, n_read;
-    char buffer[BUF_SIZE], save[BUF_SIZE], *token;
-    flight_t *booker;
+    char buffer[BUF_SIZE];
+
+    departure_t *d_booker;
+    arrival_t *a_booker;
+
     while (1) {
 
-        //wait for something in the input_pipe
         if ((fd = open(PIPE_NAME, O_RDONLY)) < 0) {
-            printf("Cannot open pipe for reading!\n ");
+            log_error(log_file, "Error opening the pipe for reading...", ON);
             exit(0);
         }
-        //when "open()" unblocks, read input_pipe into the buffer
 
         n_read = read(fd, buffer, BUF_SIZE);
+        buffer[n_read - 1] = '\0';
+
         time_control = get_time();
-        buffer[n_read - 1] = '\0';//terminate with \0
-        strcpy(save, buffer);//saved copy of the buffer
-        //print message received from pipe
 
-        log_info(log_file, "RECEIVED => ", buffer, ON);
+        words = wordCount(buffer);
 
-        //process the information
-        token = strtok(buffer, " ");
-        words = 0;
 
-        while (token) {
-            token = strtok(NULL, " ");
-            words++;
-        }
+        if (words == 6) {  // DEPARTURE
 
-        if (words == 6) {//DEPARTURE
-            if ((booker = check_departure(save, time_control))) {
+            if ((d_booker = check_departure(buffer, time_control))) {
 
-                add_queue(queue, booker);
-                printf("Departure queued!\n");
-                //log_departure(log_file, booker->name,)
+                add_departure(arrival_queue, d_booker);
+                log_command(log_file, buffer, NEW_COMMAND, ON);
 
-                print_queue(queue);
+                print_queue(arrival_queue);
             } else {
-                printf("Failed to book Flight!\n");
+                log_command(log_file, buffer, WRONG_COMMAND, ON);
             }
-        } else if (words == 8) {//ARRIVAL
-            if ((booker = check_arrival(save, time_control))) {
-                add_queue(queue, booker);
-                printf("Arrival queued!\n");
 
-                printf("    FLIGHT: %s\n    init: %d\n    eta: %d\n    fuel: %d\n", booker->name, booker->init_time,
-                       booker->eta, booker->fuel);
-                print_queue(queue);
+        } else if (words == 8) {  // ARRIVAL
+
+            if ((a_booker = check_arrival(buffer, time_control))) {
+                add_arrival(departure_queue, a_booker);
+                log_command(log_file, buffer, NEW_COMMAND, ON);
+
+                print_queue(departure_queue);
             } else {
-                printf("Failed to book Landing!\n");
+                log_command(log_file, buffer, WRONG_COMMAND, ON);
             }
         } else {
-            printf("Bad request!\n");
+            log_command(log_file, buffer, WRONG_COMMAND, ON);
         }
-
-        //close pipe file descriptor
-        booker = NULL;
         close(fd);
     }
 }
@@ -299,16 +374,25 @@ void * pipe_reader(void* param_queue){
 
 void end_program(int signo) {
     signal(SIGINT, SIG_IGN);
-    kill(control_tower,SIGKILL); // mata filho
-    pthread_cancel(timer_thread); //cancela timer
-    pthread_cancel(pipe_thread); //cancela pipe_reader
-    shmctl(shmid, IPC_RMID, NULL);// remove shm
-    msgctl(msqid, IPC_RMID, NULL);//remove msq
-    //needed: remove linked list
-    log_status(log_file, CONCLUDED, ON);//print consola e no log que terminou
-    fclose(log_file);// fecha o log
-    exit(0);// exit do processo pai
-    //!!!!ver main do simulation manager(final) !!!!
+
+    kill(control_tower, SIGKILL);
+
+    pthread_cancel(timer_thread);
+    pthread_cancel(pipe_thread);
+
+    shmctl(shmid, IPC_RMID, NULL);
+    msgctl(msqid, IPC_RMID, NULL);
+
+    delete_queue(arrival_queue);
+    delete_queue(departure_queue);
+
+    log_status(log_file, CONCLUDED, ON);
+    fclose(log_file);
+
+    sem_unlink("LOG_MUTEX");
+    sem_close(mutex_log);
+
+    exit(0);
 }
     
     

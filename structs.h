@@ -6,15 +6,32 @@
 #define ARRIVAL_FLIGHT 1
 #define BUF_SIZE 1024
 
+
 // Flight Structure
-typedef struct Flight {
+typedef struct ArrivalFlight {
     char name[BUF_SIZE];
-    int init_time;
-    int takeoff_time;
+    int init;
     int eta;
     int fuel;
-    int type;
+} arrival_t;
+
+typedef struct DepartureFlight {
+    char name[BUF_SIZE];
+    int init;
+    int takeoff;
+} departure_t;
+
+
+typedef union Flight {
+    arrival_t *a_flight;
+    departure_t *d_flight;
 } flight_t;
+
+typedef struct Queue {
+    flight_t flight;
+    struct Queue *next;
+    int type;
+} queue_t;
 
 // Structure shared in memory
 typedef struct Shared {
@@ -39,10 +56,5 @@ typedef struct Configurations {
     int max_arrivals;
 
 } config_t;
-
-typedef struct Queue {
-    flight_t *flight;
-    struct Queue *next;
-}queue_t;
 
 #endif // STRUCTS_H
