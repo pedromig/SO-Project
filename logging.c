@@ -8,17 +8,11 @@
 #include "SimulationManager.h"
 #include "logging.h"
 
-#define LBLUE   "\x1B[36m"
-#define YELLOW   "\x1B[33m"
-#define RED   "\x1B[31m"
-#define GREEN  "\x1B[32m"
-#define RESET "\x1B[0m"
-
-
 /**
  * This function gets the current time of the system
  * and formats the time placing it in a string passed
  * by parameter
+ * -> We use the reentrant version of localtime to guarantee thread safety
  * @param time_str String to be loaded with the system time
  *                 properly formated.The String must be allocated
  *                 with the size (9 bytes) adjusted to the format HH:MM:SS
@@ -30,15 +24,16 @@
 int sys_time(char *time_str) {
     int str_size = 9, status = 0;
     time_t t;
-    struct tm *t_info;
+    struct tm *t_info = (struct tm *) malloc(sizeof(struct tm));
 
     t = time(NULL);
     if (t == (time_t) -1) {
         status = -1;
     } else {
-        t_info = localtime(&t);
+        localtime_r(&t, t_info);
         strftime(time_str, str_size, "%T", t_info);
     }
+    free(t_info);
     return status;
 }
 
@@ -274,7 +269,12 @@ void log_error(FILE *fp, char *error_msg, int terminal) {
 
 /**
  * This function logs the program debug messages
+ * The funtion allows us to write only to the console
+ * only to the file or both which can be quite helpful
+ * To disable the writing to the file pass NULL as a parameter
+ *
  * @param fp File pointer to the output stream
+ *           or NULL to disable the file writing
  * @param debug_msg The message for the debug
  * @param Terminal output ON(1) OFF(0)
  */
@@ -286,7 +286,8 @@ void log_debug(FILE *fp, char *debug_msg, int terminal) {
     sem_wait(mutex_log);
     if (terminal)
         fprintf(TERMINAL, "%s%s%s %sDEBUG:%s %s\n", LBLUE, time, RESET, YELLOW, RESET, debug_msg);
-    fprintf(fp, "%s DEBUG: %s\n", time, debug_msg);
+    if (fp)
+        fprintf(fp, "%s DEBUG: %s\n", time, debug_msg);
     sem_post(mutex_log);
 }
 

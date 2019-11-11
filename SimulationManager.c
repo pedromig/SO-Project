@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -11,7 +10,6 @@
 #include <string.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <time.h>
 #include <signal.h>
 #include <wait.h>
 
@@ -31,15 +29,16 @@ pthread_cond_t time_refresher = PTHREAD_COND_INITIALIZER;
 pid_t control_tower;
 FILE *log_file;
 sem_t *mutex_log, *tower_mutex;
-pthread_mutex_t mutex_arrivals = PTHREAD_MUTEX_INITIALIZER; 
+pthread_mutex_t mutex_arrivals = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_departures = PTHREAD_MUTEX_INITIALIZER;
 queue_t *arrival_queue;
-queue_t *departure_queue; 
+queue_t *departure_queue;
 pthread_t *air_departures, *air_arrivals;
 
 
 int main() {
     config_t configs;
+
     //create log mutex
     sem_unlink("LOG_MUTEX");
     mutex_log = sem_open("LOG_MUTEX", O_CREAT | O_EXCL, 0766, 1);
@@ -47,6 +46,8 @@ int main() {
         perror("Log file LOG_MUTEX creation failed");
         exit(0);
     }
+
+
     //create "wait for tower" mutex (tower must be generated before the simulator truly starts)
     sem_unlink("WAIT_TOWER");
     tower_mutex = sem_open("WAIT_TOWER", O_CREAT | O_EXCL, 0766, 1);
@@ -55,15 +56,20 @@ int main() {
         exit(0);
     }
 
+
     //open log
     log_file = open_log(LOG_PATH, ON);
     log_status(log_file, STARTED, ON);
 
+
     //read configurations from file
     configs = read_configs(CONFIG_PATH);
+
+
     //flight threads max sizes configurations
-    air_arrivals = malloc(configs.max_arrivals*sizeof(pthread_t));
-    air_departures = malloc(configs.max_departures*sizeof(pthread_t));
+    air_arrivals = malloc(configs.max_arrivals * sizeof(pthread_t));
+    air_departures = malloc(configs.max_departures * sizeof(pthread_t));
+
 
     //shm creation
     log_debug(log_file, "Creating shared memory...", ON);
@@ -72,6 +78,7 @@ int main() {
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
+
 
     //attaching shared memory
     log_debug(log_file, "Attaching shared memory...", ON);
@@ -82,13 +89,16 @@ int main() {
     }
     log_debug(log_file, "DONE!", ON);
 
-    shm_struct->arrivals_id = malloc(configs.max_arrivals*sizeof(int));
-    shm_struct->departures_id = malloc(configs.max_departures*sizeof(int));
-        printf("passou\n");
+
+    shm_struct->arrivals_id = malloc(configs.max_arrivals * sizeof(int));
+    shm_struct->departures_id = malloc(configs.max_departures * sizeof(int));
+    //printf("passou\n");
+
 
     //initializing time
     shm_struct->time = 0;
     //TODO: int* on shm
+
 
     //creating msq
     log_debug(log_file, "Creating Message Queue...", ON);
@@ -97,6 +107,8 @@ int main() {
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
+
+
     //tower manager
     log_debug(log_file, "Creating Control Tower process...", ON);
     sem_wait(tower_mutex);
@@ -107,6 +119,7 @@ int main() {
     }
     log_debug(log_file, "DONE!", ON);
 
+
     //pipe creation
     log_debug(log_file, "Unlinking the named pipe...", ON);
     unlink(PIPE_NAME);
@@ -115,6 +128,7 @@ int main() {
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
+
 
     //init queues
     log_debug(log_file, "Creating flight waiting queue", ON);
@@ -126,6 +140,7 @@ int main() {
     }
     log_debug(log_file, "DONE!", ON);
 
+
     // arrivals handler thread
     log_debug(log_file, "Creating arrivals handler Thread...", ON);
     if (pthread_create(&arrivals_handler, NULL, arrivals_creation, NULL)) {
@@ -133,6 +148,7 @@ int main() {
         exit(0);
     }
     log_debug(log_file, "DONE!", ON);
+
 
     // departures handler thread
     log_debug(log_file, "Creating departures handler Thread...", ON);
@@ -142,6 +158,7 @@ int main() {
     }
     log_debug(log_file, "DONE!", ON);
 
+
     //pipe reader thread
     log_debug(log_file, "Creating pipe reader Thread...", ON);
     if (pthread_create(&pipe_thread, NULL, pipe_reader, NULL)) {
@@ -150,9 +167,11 @@ int main() {
     }
     log_debug(log_file, "DONE!", ON);
 
+
     //waiting for the tower process to be created
     sem_wait(tower_mutex);
-    sem_post(tower_mutex);//unecessary
+    sem_post(tower_mutex);  //unecessary
+
 
     //time thread 
     log_debug(log_file, "Starting Simulation...", ON);
@@ -162,13 +181,17 @@ int main() {
         exit(0);
     }
     //log_debug(log_file, "DONE!", ON);
-    
+
+
     //shutdown things
     signal(SIGINT, end_program);
+
+    log_debug(log_file, "Waiting for process and threads to join...", ON);
     wait(NULL);
     pthread_join(timer_thread, NULL);
     pthread_join(pipe_thread, NULL);
-    pthread_join(departures_handler,NULL);
-    pthread_join(arrivals_handler,NULL);
+    pthread_join(departures_handler, NULL);
+    pthread_join(arrivals_handler, NULL);
+    log_debug(log_file, "DONE!", ON);
     exit(0);
 }

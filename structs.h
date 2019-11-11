@@ -37,8 +37,8 @@ typedef struct Queue {
 typedef struct Shared {
     // TODO: Statistics
     int time;
-    int * arrivals_id;
-    int * departures_id;
+    int *arrivals_id;
+    int *departures_id;
 } shared_t;
 
 // Struct containing the configurations

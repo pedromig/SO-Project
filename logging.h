@@ -11,6 +11,14 @@
 #define OFF 0
 #define ON 1
 
+#define LBLUE   "\x1B[36m"
+#define YELLOW   "\x1B[33m"
+#define RED   "\x1B[31m"
+#define GREEN  "\x1B[32m"
+#define RESET "\x1B[0m"
+#define BLUE   "\x1B[34m"
+#define MAG   "\x1B[35m"
+
 FILE *open_log(char *log,int clean_log);
 
 void log_landing(FILE *fp, char *flight, char *runway, int state, int terminal);
