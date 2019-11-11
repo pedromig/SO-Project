@@ -116,6 +116,7 @@ void delete_queue(queue_t *head) {
 }
 
 void add_arrival(queue_t *head, arrival_t *flight) {
+    pthread_mutex_lock(&mutex_arrivals);
     queue_t *last = head;
     queue_t *current = head->next;
     queue_t *new = (queue_t *) malloc(sizeof(queue_t));
@@ -129,9 +130,11 @@ void add_arrival(queue_t *head, arrival_t *flight) {
 
     new->next = current;
     last->next = new;
+    pthread_mutex_unlock(&mutex_arrivals);
 }
 
 void add_departure(queue_t *head, departure_t *flight) {
+    pthread_mutex_lock(&mutex_departures);
     queue_t *last = head;
     queue_t *current = head->next;
     queue_t *new = (queue_t *) malloc(sizeof(queue_t));
@@ -145,6 +148,7 @@ void add_departure(queue_t *head, departure_t *flight) {
 
     new->next = current;
     last->next = new;
+    pthread_mutex_unlock(&mutex_departures);
 }
 
 void find_flight(queue_t *head, queue_t **before, queue_t **current, int init) {

@@ -6,6 +6,8 @@
 #define CONFIG_PATH "config.txt"
 #define BUF_SIZE 1024
 
+#include <pthread.h>
+
 #include "structs.h"
 
 extern int shmid, msqid;
