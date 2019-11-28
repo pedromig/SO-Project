@@ -332,26 +332,22 @@ int get_time(void) {
 
 void *pipe_reader(void *param_queue) {
     int time_control = 0;
-    int words, fd, n_read;
+    int words, n_read;
     char buffer[BUF_SIZE];
 
     departure_t *d_booker;
     arrival_t *a_booker;
-
+    if ((fd = open(PIPE_NAME, O_RDWR)) < 0) {
+        log_error(log_file, "Error opening the pipe for reading...", ON);
+        exit(0);
+    }
     while (1) {
-
-        if ((fd = open(PIPE_NAME, O_RDONLY)) < 0) {
-            log_error(log_file, "Error opening the pipe for reading...", ON);
-            exit(0);
-        }
-
         n_read = read(fd, buffer, BUF_SIZE);
         buffer[n_read - 1] = '\0';
 
         time_control = get_time();
 
         words = wordCount(buffer);
-
 
         if (words == 6) {  // DEPARTURE
 
@@ -378,7 +374,6 @@ void *pipe_reader(void *param_queue) {
         } else {
             log_command(log_file, buffer, WRONG_COMMAND, ON);
         }
-        close(fd);
     }
 }
 
@@ -491,6 +486,7 @@ void end_program(int signo) {
     log_debug(log_file, "DONE!", ON);
 
     log_debug(log_file, "Deleting shared memory...", ON);
+    shmdt(shm_struct);
     shmctl(shmid, IPC_RMID, NULL);
     log_debug(log_file, "DONE!", ON);
 
@@ -515,12 +511,14 @@ void end_program(int signo) {
     sem_close(tower_mutex);
     log_debug(log_file, "DONE!", ON);
 
-    log_debug(log_file, "Closing log file, unlinking and deleting the semaphore!...", ON);
+    log_debug(log_file, "Closing log file, unlinking and deleting the semaphores!...", ON);
     log_debug(log_file, "DONE!", ON);
     log_status(log_file, CONCLUDED, ON);
 
     fclose(log_file);
     sem_unlink("LOG_MUTEX");
     sem_close(mutex_log);
+    close(fd);
+    unlink(PIPE_NAME);
     exit(0);
 }

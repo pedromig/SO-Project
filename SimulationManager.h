@@ -10,7 +10,7 @@
 
 #include "structs.h"
 
-extern int shmid, msqid;
+extern int shmid, msqid, fd;
 extern pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
 extern pthread_cond_t time_refresher;
 extern pid_t control_tower;

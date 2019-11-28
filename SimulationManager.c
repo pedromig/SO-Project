@@ -22,7 +22,7 @@
 
 
 //Global variables
-int shmid, msqid;
+int shmid, fd, msqid;
 shared_t *shm_struct;
 pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
 pthread_cond_t time_refresher = PTHREAD_COND_INITIALIZER;
