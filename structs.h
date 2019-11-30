@@ -59,4 +59,22 @@ typedef struct Configurations {
 
 } config_t;
 
+
+typedef struct ArrivalMessage {
+    long mtype;
+    int eta;
+    int fuel;
+} arrival_msg_t;
+
+typedef struct DepartureMessage {
+    long mtype;
+    int takeoff;
+} departure_msg_t;
+
+typedef struct ControlTowerAnswer {
+    long mtype;
+    int slot;
+} answer_msg_t;
+
+
 #endif // STRUCTS_H

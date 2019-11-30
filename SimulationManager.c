@@ -92,13 +92,11 @@ int main() {
 
     shm_struct->arrivals_id = malloc(configs.max_arrivals * sizeof(int));
     shm_struct->departures_id = malloc(configs.max_departures * sizeof(int));
-    //printf("passou\n");
 
 
     //initializing time
     shm_struct->time = 0;
     //TODO: int* on shm
-
 
     //creating msq
     log_debug(log_file, "Creating Message Queue...", ON);

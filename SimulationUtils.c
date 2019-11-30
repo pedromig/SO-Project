@@ -171,13 +171,13 @@ void find_flight(queue_t *head, queue_t **before, queue_t **current, int init) {
     }
 }
 
-void remove_flight(queue_t *head, int init, flight_t *estrutura) {
+void remove_flight(queue_t *head, int init, flight_t *structure) {
     queue_t *current;
     queue_t *before;
 
     find_flight(head, &before, &current, init);
     if (current != NULL) {
-        *estrutura = current->flight;
+        *structure = current->flight;
         before->next = current->next;
         free(current);
     }
@@ -395,7 +395,7 @@ void *arrivals_creation(void *nothing) {
         while (current && (current->flight.a_flight->init == time)) {
             remove_flight(arrival_queue, current->flight.a_flight->init, &to_fly);
             shm_struct->arrivals_id[air_counter] = air_counter;
-            if (pthread_create(&air_arrivals[air_counter], NULL, arrival_execution,
+            if (pthread_create(&air_arrivals[air_counter], NULL, arrival_flight,
                                &(shm_struct->arrivals_id[air_counter]))) {
                 log_error(log_file, "Arrival thread creation failed", ON);
                 exit(0);
@@ -424,7 +424,7 @@ void *departures_creation(void *nothing) {
         while (current && (current->flight.d_flight->init == time)) {
             remove_flight(departure_queue, current->flight.d_flight->init, &to_fly);
             shm_struct->departures_id[air_counter] = air_counter;
-            if (pthread_create(&air_departures[air_counter], NULL, departure_execution,
+            if (pthread_create(&air_departures[air_counter], NULL, departure_flight,
                                &(shm_struct->departures_id[air_counter]))) {
                 log_error(log_file, "Departure thread creation failed", ON);
                 exit(0);
@@ -438,19 +438,20 @@ void *departures_creation(void *nothing) {
 }
 
 //########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
-void *departure_execution(void *departure_id) {
+void *departure_flight(void *departure_id) {
     char str[BUF_SIZE];
     int id = *((int *) departure_id);
+
     sprintf(str, "Ready to Fly! Departure_ID: %d", id);
     log_info(log_file, str, ON);
-    //msq ready msg
+
     pthread_cancel(pthread_self());
     pthread_join(pthread_self(), NULL);
 
     return NULL;
 }
 
-void *arrival_execution(void *arrival_id) {
+void *arrival_flight(void *arrival_id) {
     char str[BUF_SIZE];
     int id = *((int *) arrival_id);
     sprintf(str, "Ready to land! Arrival_ID: %d", id);

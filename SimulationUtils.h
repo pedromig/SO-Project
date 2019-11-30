@@ -29,8 +29,8 @@ void* arrivals_creation(void* nothing);
 
 void* departures_creation(void* nothing);
 
-void* departure_execution(void* departure_id);
+void* departure_flight(void* departure_id);
 
-void* arrival_execution(void* arrival_id);
+void* arrival_flight(void* arrival_id);
   
 #endif //SO_PROJECT_SIMULATIONUTILS_H
