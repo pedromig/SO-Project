@@ -438,7 +438,7 @@ void *departures_creation(void *nothing) {
 }
 
 //########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
-void *departure_flight(void *departure_id) {
+void *departure_execution(void *departure_id) {
     char str[BUF_SIZE];
     int id = *((int *) departure_id);
 
@@ -451,7 +451,7 @@ void *departure_flight(void *departure_id) {
     return NULL;
 }
 
-void *arrival_flight(void *arrival_id) {
+void *arrival_execution(void *arrival_id) {
     char str[BUF_SIZE];
     int id = *((int *) arrival_id);
     sprintf(str, "Ready to land! Arrival_ID: %d", id);
