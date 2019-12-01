@@ -2,7 +2,11 @@
 #define CONTROL_TOWER_H
 
 #include "SimulationManager.h"
+
+#define NUM_THREADS 1
+
 void tower_manager();
 
+void cleanup(int signo);
 
 #endif // CONTROL_TOWER_H

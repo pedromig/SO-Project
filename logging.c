@@ -224,6 +224,7 @@ void log_detour(FILE *fp, char *flight, int fuel, int terminal) {
  * the current status implemented are 
  * program start and program end.
  * @param fp File pointer to the output stream
+ *              or NULL to disable the file writing feature
  * @param program_status STARTED(1) CONCLUDED(0)
  * @param Terminal output ON(1) OFF(0)
  */
@@ -238,11 +239,13 @@ void log_status(FILE *fp, int program_status, int terminal) {
         if (terminal)
             fprintf(TERMINAL, "%s%s%s %s<----- SIMULATION MANAGER STARTED ----->%s\n", LBLUE, time, RESET, GREEN,
                     RESET);
-        fprintf(fp, "%s <----- SIMULATION MANAGER STARTED ----->\n", time);
+        if(fp)
+            fprintf(fp, "%s <----- SIMULATION MANAGER STARTED ----->\n", time);
     } else if (program_status == CONCLUDED) {
         if (terminal)
             fprintf(TERMINAL, "%s%s%s %s<----- SIMULATION MANAGER ENDED ----->%s\n", LBLUE, time, RESET, GREEN, RESET);
-        fprintf(fp, "%s <----- SIMULATION MANAGER ENDED ----->\n", time);
+        if(fp)
+            fprintf(fp, "%s <----- SIMULATION MANAGER ENDED ----->\n", time);
     } else {
         printf("Invalid log!...\n");
     }
@@ -252,8 +255,9 @@ void log_status(FILE *fp, int program_status, int terminal) {
 /**
  * This function logs the program error messages
  * @param fp File pointer to the output stream
- * @param error_msg The message for the error
- * @param Terminal output ON(1) OFF(0)
+ *          or NULL to disable the file writing feature
+ * @param error_msg The error message
+ * @param terminal output ON(1) OFF(0)
  */
 
 void log_error(FILE *fp, char *error_msg, int terminal) {
@@ -262,8 +266,9 @@ void log_error(FILE *fp, char *error_msg, int terminal) {
     sys_time(time);
     sem_wait(mutex_log);
     if (terminal)
-        fprintf(TERMINAL, "%s%s%s %sERROR:%s %s\n", LBLUE, RESET, time, RED, RESET, error_msg);
-    fprintf(fp, "%s ERROR: %s\n", time, error_msg);
+        fprintf(TERMINAL, "%s%s%s %sERROR:%s %s\n", LBLUE, time, RESET, RED, RESET, error_msg);
+    if (fp)
+        fprintf(fp, "%s ERROR: %s\n", time, error_msg);
     sem_post(mutex_log);
 }
 
@@ -274,7 +279,7 @@ void log_error(FILE *fp, char *error_msg, int terminal) {
  * To disable the writing to the file pass NULL as a parameter
  *
  * @param fp File pointer to the output stream
- *           or NULL to disable the file writing
+ *           or NULL to disable the file writing feature
  * @param debug_msg The message for the debug
  * @param Terminal output ON(1) OFF(0)
  */
@@ -294,6 +299,7 @@ void log_debug(FILE *fp, char *debug_msg, int terminal) {
 /**
  * This function logs the program info messages
  * @param fp File pointer to the output stream
+ *        or NULL to disable the file writing feature
  * @param info_msg Additional info (it can be NULL)
  * @param Terminal output ON(1) OFF(0)
  */
@@ -305,6 +311,7 @@ void log_info(FILE *fp, char *info_msg, int terminal) {
     sem_wait(mutex_log);
     if (terminal)
         fprintf(TERMINAL, "%s%s%s %sINFO:%s %s\n", LBLUE, time, RESET, GREEN, RESET, info_msg);
-    fprintf(fp, "%s INFO: %s\n", time, info_msg);
+    if (fp)
+        fprintf(fp, "%s INFO: %s\n", time, info_msg);
     sem_post(mutex_log);
 }

@@ -1,6 +1,8 @@
 #ifndef SO_PROJECT_SIMULATIONUTILS_H
 #define SO_PROJECT_SIMULATIONUTILS_H
 
+#define STATE_FREE 0
+
 void *timer(void *time_units);
 
 int get_time(void);
@@ -29,8 +31,8 @@ void* arrivals_creation(void* nothing);
 
 void* departures_creation(void* nothing);
 
-void* departure_flight(void* departure_id);
+void* departure_execution(void *flight_info);
 
-void* arrival_flight(void* arrival_id);
+void* arrival_execution(void *flight_info);
   
 #endif //SO_PROJECT_SIMULATIONUTILS_H

@@ -4,12 +4,15 @@
 
 #define DEPARTURE_FLIGHT 0
 #define ARRIVAL_FLIGHT 1
-#define BUF_SIZE 1024
+#define DEPARTURE_MESSAGE 1
+#define ARRIVAL_MESSAGE 2
 
+#define BUF_SIZE 1024
 
 // Flight Structure
 typedef struct ArrivalFlight {
     char name[BUF_SIZE];
+    int flight_id;
     int init;
     int eta;
     int fuel;
@@ -17,6 +20,7 @@ typedef struct ArrivalFlight {
 
 typedef struct DepartureFlight {
     char name[BUF_SIZE];
+    int flight_id;
     int init;
     int takeoff;
 } departure_t;
@@ -37,8 +41,7 @@ typedef struct Queue {
 typedef struct Shared {
     // TODO: Statistics
     int time;
-    int *arrivals_id;
-    int *departures_id;
+    int flight_ids[];
 } shared_t;
 
 // Struct containing the configurations
@@ -60,21 +63,13 @@ typedef struct Configurations {
 } config_t;
 
 
-typedef struct ArrivalMessage {
+typedef struct FlightMessage {
     long mtype;
+    int id;
     int eta;
     int fuel;
-} arrival_msg_t;
-
-typedef struct DepartureMessage {
-    long mtype;
     int takeoff;
-} departure_msg_t;
-
-typedef struct ControlTowerAnswer {
-    long mtype;
     int slot;
-} answer_msg_t;
-
+}msg_t;
 
 #endif // STRUCTS_H
