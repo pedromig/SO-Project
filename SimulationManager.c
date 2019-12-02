@@ -37,7 +37,6 @@ pthread_t *flight_threads;
 
 
 int main() {
-    struct sigaction terminate_action;
     config_t configs;
 
     //create log mutex
@@ -58,8 +57,7 @@ int main() {
 
     //open log
     log_file = open_log(LOG_PATH, ON);
-    log_status(log_file, STARTED, ON);
-
+    
     //read configurations from file
     configs = read_configs(CONFIG_PATH);
     num_flights = configs.max_arrivals + configs.max_departures;
@@ -69,22 +67,22 @@ int main() {
     memset(flight_threads, STATE_FREE, sizeof(pthread_t) * num_flights);
 
     //shm creation
-    log_debug(log_file, "Creating shared memory...", ON);
+    log_debug(NULL, "Creating shared memory... ", ON);
     if ((shmid = shmget(IPC_PRIVATE, sizeof(shared_t) + (sizeof(int) * num_flights), IPC_CREAT | 0777)) < 0) {
-        log_error(log_file, "Shared memory allocation failed", ON);
+        log_error(NULL, "Shared memory allocation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Shared Memory Created!)", ON);
+    log_debug(NULL, "DONE! (Shared Memory Created!)", ON);
 
 
     //attaching shared memory
-    log_debug(log_file, "Attaching shared memory...", ON);
+    log_debug(NULL, "Attaching shared memory...", ON);
     shm_struct = (shared_t *) shmat(shmid, NULL, 0);
     if (shm_struct == (shared_t *) -1) {
-        log_error(log_file, "Shared memory attach failed", ON);
+        log_error(NULL, "Shared memory attach failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Shared memory Attached!)", ON);
+    log_debug(NULL, "DONE! (Shared memory Attached!)", ON);
 
 
     //initializing time and flight_ids array
@@ -92,97 +90,90 @@ int main() {
     memset(&(shm_struct->flight_ids), STATE_FREE, num_flights * sizeof(int));
 
     //creating msq
-    log_debug(log_file, "Creating Message Queue...", ON);
+    log_debug(NULL, "Creating Message Queue...", ON);
     if ((msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0777)) == -1) {
-        log_error(log_file, "Message Queue creation failed", ON);
+        log_error(NULL, "Message Queue creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Message Queue created!)", ON);
+    log_debug(NULL, "DONE! (Message Queue created!)", ON);
 
 
     //tower manager
-    log_debug(log_file, "Creating Control Tower process...", ON);
-    sem_wait(tower_mutex);
+    log_debug(NULL, "Creating Control Tower process...", ON);
     if ((control_tower = fork()) == 0) {
-        signal(SIGINT, SIG_IGN);
-        log_debug(log_file, "Control Tower Active...", ON);
         sem_wait(tower_mutex);
+        signal(SIGINT, SIG_IGN);
+        log_debug(NULL, "Control Tower Active...", ON);
         tower_manager();
         exit(0);
     }
-    log_debug(log_file, "DONE!(Control Tower process!)", ON);
+    log_debug(NULL, "DONE!(Control Tower process!)", ON);
 
 
     //pipe creation
-    log_debug(log_file, "Unlinking the named pipe...", ON);
+    log_debug(NULL, "Unlinking the named pipe...", ON);
     unlink(PIPE_NAME);
     if (mkfifo(PIPE_NAME, O_CREAT | O_EXCL | 0777) < 0) {
-        log_error(log_file, "Named Pipe creation failed", ON);
+        log_error(NULL, "Named Pipe creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Named Pipe created!)", ON);
+    log_debug(NULL, "DONE! (Named Pipe created!)", ON);
 
 
     //init queues
-    log_debug(log_file, "Creating flight waiting queue", ON);
+    log_debug(NULL, "Creating flight waiting queue", ON);
     arrival_queue = create_queue(ARRIVAL_FLIGHT);
     departure_queue = create_queue(DEPARTURE_FLIGHT);
     if (!arrival_queue || !departure_queue) {
-        log_error(log_file, "Flight queue creation failed", ON);
+        log_error(NULL, "Flight queue creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Flight Waiting Queue created!)", ON);
+    log_debug(NULL, "DONE! (Flight Waiting Queue created!)", ON);
 
 
     // arrivals handler thread
-    log_debug(log_file, "Creating arrivals handler Thread...", ON);
+    log_debug(NULL, "Creating arrivals handler Thread...", ON);
     if (pthread_create(&arrivals_handler, NULL, arrivals_creation, NULL)) {
-        log_error(log_file, "Arrivals handler thread creation failed", ON);
+        log_error(NULL, "Arrivals handler thread creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Arrivals Handler thread created!)", ON);
+    log_debug(NULL, "DONE! (Arrivals Handler thread created!)", ON);
 
 
     // departures handler thread
-    log_debug(log_file, "Creating departures handler Thread...", ON);
+    log_debug(NULL, "Creating departures handler Thread...", ON);
     if (pthread_create(&departures_handler, NULL, departures_creation, NULL)) {
-        log_error(log_file, "Departures handler thread creation failed", ON);
+        log_error(NULL, "Departures handler thread creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Departures Handler thread created!)", ON);
+    log_debug(NULL, "DONE! (Departures Handler thread created!)", ON);
 
 
     //pipe reader thread
-    log_debug(log_file, "Creating pipe reader Thread...", ON);
+    log_debug(NULL, "Creating pipe reader Thread...", ON);
     if (pthread_create(&pipe_thread, NULL, pipe_reader, NULL)) {
-        log_error(log_file, "Pipe reader thread creation failed", ON);
+        log_error(NULL, "Pipe reader thread creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Pipe reader thread created!)", ON);
+    log_debug(NULL, "DONE! (Pipe reader thread created!)", ON);
 
     //waiting for the tower process to be created
-    sem_post(tower_mutex);
+    sem_wait(tower_mutex);
 
     //time thread
-    log_debug(log_file, "Creating time Thread...", ON);
+    log_debug(NULL, "Creating time Thread...", ON);
     if (pthread_create(&timer_thread, NULL, timer, (void *) (&configs.time_units))) {
-        log_error(log_file, "Timer thread creation failed", ON);
+        log_error(NULL, "Timer thread creation failed", ON);
         exit(0);
     }
-    log_debug(log_file, "DONE! (Timer thread created!)", ON);
+    log_debug(NULL, "DONE! (Timer thread created!)", ON);
 
-    log_info(log_file, "Starting Simulation...", ON);
-
+    log_info(NULL, "Starting Simulation...", ON);
+    log_status(log_file, STARTED, ON);
 
     //shutdown things
-    terminate_action.sa_handler = end_program;
-    sigemptyset(&terminate_action.sa_mask);
-    terminate_action.sa_flags = 0;
-
-    sigaction(SIGINT, &terminate_action, NULL);
-
-    log_debug(log_file, "Waiting for process and threads to join...", ON);
-    while (wait(NULL) > 0);
+    signal(SIGINT,end_program);
+    pause();
 
     exit(0);
 }
