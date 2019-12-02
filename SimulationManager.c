@@ -104,7 +104,9 @@ int main() {
     log_debug(log_file, "Creating Control Tower process...", ON);
     sem_wait(tower_mutex);
     if ((control_tower = fork()) == 0) {
+        signal(SIGINT, SIG_IGN);
         log_debug(log_file, "Control Tower Active...", ON);
+        sem_wait(tower_mutex);
         tower_manager();
         exit(0);
     }
@@ -159,7 +161,7 @@ int main() {
     log_debug(log_file, "DONE! (Pipe reader thread created!)", ON);
 
     //waiting for the tower process to be created
-    sem_wait(tower_mutex);
+    sem_post(tower_mutex);
 
     //time thread
     log_debug(log_file, "Creating time Thread...", ON);

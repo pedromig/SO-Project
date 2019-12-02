@@ -18,11 +18,11 @@ void tower_manager() {
     terminate_action.sa_handler = cleanup;
     sigemptyset(&terminate_action.sa_mask);
     terminate_action.sa_flags = 0;
-    sigaction(SIGINT, &terminate_action, NULL);
+    sigaction(SIGUSR2, &terminate_action, NULL);
 
     stats_action.sa_handler = stats_show;
     sigemptyset(&stats_action.sa_mask);
-    sigdelset(&stats_action.sa_mask, SIGKILL);
+    sigdelset(&stats_action.sa_mask, SIGUSR2);
     stats_action.sa_flags = 0;
     sigaction(SIGUSR1, &stats_action, NULL);
 
@@ -49,7 +49,7 @@ void stats_show(int signo) {
     terminate_action.sa_handler = cleanup;
     sigemptyset(&terminate_action.sa_mask);
     terminate_action.sa_flags = 0;
-    sigaction(SIGINT, &terminate_action, NULL);
+    sigaction(SIGUSR2, &terminate_action, NULL);
 
     printf("Show Stats\n");
 }

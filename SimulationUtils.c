@@ -550,7 +550,7 @@ void end_program(int signo) {
     log_debug(log_file, "DONE! (All Simulation Manager threads joined!)", ON);
 
     log_debug(log_file, "Killing Control Tower process...", ON);
-    kill(control_tower, SIGINT);
+    kill(control_tower, SIGUSR2);
     while (wait(NULL) > 0);
     log_debug(log_file, "DONE! (Control Tower process terminated!)", ON);
 
