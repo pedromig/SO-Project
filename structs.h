@@ -4,8 +4,8 @@
 
 #define DEPARTURE_FLIGHT 0
 #define ARRIVAL_FLIGHT 1
-#define DEPARTURE_MESSAGE 1
-#define ARRIVAL_MESSAGE 2
+#define FLIGHT_THREAD_REQUEST 1
+#define NOT_APLICABLE -1
 
 #define BUF_SIZE 1024
 
@@ -25,7 +25,6 @@ typedef struct DepartureFlight {
     int takeoff;
 } departure_t;
 
-
 typedef union Flight {
     arrival_t *a_flight;
     departure_t *d_flight;
@@ -37,9 +36,22 @@ typedef struct Queue {
     struct Queue *next;
 } queue_t;
 
+typedef struct Statistics {
+    int total_flights;
+    int total_departures;
+    int landed_flights;
+    int takeoff_flights;
+    int avg_waiting_time_landing;
+    int avg_waiting_time_departure;
+    int holding_maneuvers_landing;
+    int holding_maneuvers_emergency;
+    int detour_flights;
+    int rejected_flights;
+} stats_t;
+
 // Structure shared in memory
 typedef struct Shared {
-    // TODO: Statistics
+    stats_t stats;
     int time;
     int flight_ids[];
 } shared_t;
@@ -64,12 +76,13 @@ typedef struct Configurations {
 
 
 typedef struct FlightMessage {
-    long mtype;
-    int id;
+    long msg_type;
+    long answer_msg_type;
     int eta;
     int fuel;
     int takeoff;
     int slot;
-}msg_t;
+} msg_t;
+
 
 #endif // STRUCTS_H

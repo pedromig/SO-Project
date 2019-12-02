@@ -7,6 +7,8 @@
 
 void tower_manager();
 
+void stats_show(int signo);
+
 void cleanup(int signo);
 
 #endif // CONTROL_TOWER_H

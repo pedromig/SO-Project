@@ -37,6 +37,7 @@ pthread_t *flight_threads;
 
 
 int main() {
+    struct sigaction terminate_action;
     config_t configs;
 
     //create log mutex
@@ -46,7 +47,6 @@ int main() {
         perror("Log file LOG_MUTEX creation failed");
         exit(0);
     }
-
 
     //create "wait for tower" mutex (tower must be generated before the simulator truly starts)
     sem_unlink("WAIT_TOWER");
@@ -173,10 +173,14 @@ int main() {
 
 
     //shutdown things
-    signal(SIGINT, end_program);
+    terminate_action.sa_handler = end_program;
+    sigemptyset(&terminate_action.sa_mask);
+    terminate_action.sa_flags = 0;
+
+    sigaction(SIGINT, &terminate_action, NULL);
 
     log_debug(log_file, "Waiting for process and threads to join...", ON);
-    while (wait(NULL) < 0);
+    while (wait(NULL) > 0);
 
     exit(0);
 }

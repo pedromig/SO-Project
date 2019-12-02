@@ -20,6 +20,7 @@
 
 #define LINE_BUF 30
 
+pthread_mutex_t thread_array_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int isnumber(char *string) {
     int status = 1;
@@ -392,12 +393,11 @@ void *arrivals_creation(void *nothing) {
         current = arrival_queue->next;
         time = get_time();
 
-        //TODO: Do not forget to set the flight_threads[i] to STATE_FREE when the thread terminates so it can be used by other thread
-
         while (current && (current->flight.a_flight->init == time)) {
             to_fly = (flight_t *) malloc(sizeof(flight_t));
             remove_flight(arrival_queue, current->flight.a_flight->init, to_fly);
 
+            pthread_mutex_lock(&thread_array_mutex);
             for (i = 0; i < num_flights && !found; i++) {
                 if (flight_threads[i] == STATE_FREE) {
                     to_fly->a_flight->flight_id = i;
@@ -407,8 +407,8 @@ void *arrivals_creation(void *nothing) {
                     }
                     found = 1;
                 }
-
             }
+            pthread_mutex_unlock(&thread_array_mutex);
             found = 0;
             current = current->next;
         }
@@ -429,13 +429,12 @@ void *departures_creation(void *nothing) {
         current = departure_queue->next;
         time = get_time();
 
-        //TODO: Do not forget to set the flight_threads[i] to STATE_FREE when the thread terminates so it can be used by other thread
-
         while (current && (current->flight.d_flight->init == time)) {
             to_fly = (flight_t *) malloc(sizeof(flight_t));
 
             remove_flight(departure_queue, current->flight.d_flight->init, to_fly);
 
+            pthread_mutex_lock(&thread_array_mutex);
             for (i = 0; i < num_flights && !found; i++) {
                 if (flight_threads[i] == STATE_FREE) {
                     to_fly->d_flight->flight_id = i;
@@ -446,6 +445,7 @@ void *departures_creation(void *nothing) {
                     found = 1;
                 }
             }
+            pthread_mutex_unlock(&thread_array_mutex);
             found = 0;
             current = current->next;
         }
@@ -455,39 +455,76 @@ void *departures_creation(void *nothing) {
 
 //########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
 void *departure_execution(void *flight_info) {
+    int my_slot;
     char str[BUF_SIZE];
     flight_t flight = *((flight_t *) flight_info);
+    msg_t departure_message, answer_msg;
 
     sprintf(str, "Ready to Fly! Departure_ID: %d", flight.d_flight->flight_id);
     log_info(log_file, str, ON);
+    memset(&str, 0, sizeof(str));
 
+    //message setup
+    departure_message.msg_type = (long) FLIGHT_THREAD_REQUEST;
+    departure_message.answer_msg_type = (long) flight.d_flight->flight_id + FLIGHT_THREAD_REQUEST + 1;
+    departure_message.takeoff = flight.d_flight->takeoff;
+    departure_message.fuel = NOT_APLICABLE;
+    departure_message.eta NOT_APLICABLE;
     //message queue functions
 
-    free(flight_info);
-    pthread_cancel(pthread_self());
-    pthread_join(pthread_self(), NULL);
+    if (msgsnd(msqid, &departure_message, sizeof(departure_message) - sizeof(long), IPC_NOWAIT)) {
+        log_error(log_file, "Failed to send message to the Control Tower", ON);
+    }
 
+    if (msgrcv(msqid, &answer_msg, sizeof(answer_msg), departure_message.answer_msg_type, 0) < 0) {
+        log_error(log_file, "Thread: Failed to receive message from the flight!", ON);
+    }
+
+    sprintf(str, "Departure flight [%d] --> Shared Memory Slot: %d", flight.d_flight->flight_id, answer_msg.slot);
+    log_info(log_file, str, ON);
+
+    free(flight_info);
+    // TODO: Signal someone to join the thread and put the slot in the thread array back to STATE_FREE
+    pthread_cancel(pthread_self());
     return NULL;
 }
 
 void *arrival_execution(void *flight_info) {
     char str[BUF_SIZE];
     flight_t flight = *((flight_t *) flight_info);
+    msg_t arrival_message, answer_msg;
 
     sprintf(str, "Ready to land! Arrival_ID: %d", flight.a_flight->flight_id);
     log_info(log_file, str, ON);
+    memset(&str, 0, sizeof(str));
 
+    //message setup
+    arrival_message.msg_type = (long) FLIGHT_THREAD_REQUEST;
+    arrival_message.answer_msg_type = flight.a_flight->flight_id + FLIGHT_THREAD_REQUEST + 1;
+    arrival_message.takeoff = NOT_APLICABLE;
+    arrival_message.fuel = flight.a_flight->fuel;
+    arrival_message.eta = flight.a_flight->eta;
     //message queue functions
 
+    if (msgsnd(msqid, &arrival_message, sizeof(arrival_message) - sizeof(long), IPC_NOWAIT)) {
+        log_error(log_file, "Failed to send message to the Control Tower", ON);
+    }
+
+    if (msgrcv(msqid, &answer_msg, sizeof(answer_msg), arrival_message.answer_msg_type, 0) < 0) {
+        log_error(log_file, "Thread: Failed to receive message from the flight!", ON);
+    }
+
+    sprintf(str, "Arrival flight [%d] --> Shared Memory Slot: %d", flight.d_flight->flight_id, answer_msg.slot);
+    log_info(log_file, str, ON);
+
     free(flight_info);
+    // TODO: Signal someone to join the thread and put the slot in the thread array back to STATE_FREE
     pthread_cancel(pthread_self());
-    pthread_join(pthread_self(), NULL);
     return NULL;
 }
 
 //########################################  SIGNAL HANDLER ########################################################
 void end_program(int signo) {
-    signal(SIGINT, SIG_IGN);
 
     printf("\n");
     log_info(log_file, "Simulation Manager: Received SIGINT!", ON);
@@ -513,8 +550,8 @@ void end_program(int signo) {
     log_debug(log_file, "DONE! (All Simulation Manager threads joined!)", ON);
 
     log_debug(log_file, "Killing Control Tower process...", ON);
-    kill(control_tower, SIGKILL);
-    while (wait(NULL) < 0);
+    kill(control_tower, SIGINT);
+    while (wait(NULL) > 0);
     log_debug(log_file, "DONE! (Control Tower process terminated!)", ON);
 
     log_debug(log_file, "Deleting Shared Memory...", ON);
@@ -527,19 +564,19 @@ void end_program(int signo) {
     log_debug(log_file, "DONE! (Message Queue Deleted!)", ON);
 
 
-    log_debug(log_file,
-              "Freeing thread id array...", ON);
+    log_debug(log_file, "Freeing thread id array...", ON);
     free(flight_threads);
-    log_debug(log_file,
-              "DONE! (Flight thread id array freed!)", ON);
+    log_debug(log_file, "DONE! (Flight thread id array freed!)", ON);
 
-    log_debug(log_file,
-              "Deleting flight queues...", ON);
+    log_debug(log_file, "Deleting flight queues...", ON);
     delete_queue(arrival_queue);
     delete_queue(departure_queue);
-    log_debug(log_file,
-              "DONE! (Flight queues deleted!)", ON);
+    log_debug(log_file, "DONE! (Flight queues deleted!)", ON);
 
+
+    pthread_mutex_destroy(&thread_array_mutex);
+    pthread_mutex_destroy(&mutex_departures);
+    pthread_cond_destroy(&time_refresher);
 
     log_debug(log_file, "Unlinking and deleting wait tower semaphore...", ON);
     sem_unlink("WAIT_TOWER");
