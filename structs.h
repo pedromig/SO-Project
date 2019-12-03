@@ -4,7 +4,14 @@
 
 #define DEPARTURE_FLIGHT 0
 #define ARRIVAL_FLIGHT 1
+
 #define FLIGHT_THREAD_REQUEST 1
+
+
+#define FLY_LAND_PERMISSION 11
+#define HOLDING 12
+#define DEFLECT 13
+
 #define NOT_APLICABLE -1
 
 #define BUF_SIZE 1024

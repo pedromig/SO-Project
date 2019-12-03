@@ -2,6 +2,9 @@
 #define SO_PROJECT_SIMULATIONUTILS_H
 
 #define STATE_FREE 0
+#define STATE_OCCUPIED 1
+
+#include "structs.h"
 
 void *timer(void *time_units);
 

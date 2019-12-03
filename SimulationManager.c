@@ -28,7 +28,7 @@ pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
 pthread_cond_t time_refresher = PTHREAD_COND_INITIALIZER;
 pid_t control_tower;
 FILE *log_file;
-sem_t *mutex_log, *tower_mutex;
+sem_t *mutex_log, *tower_mutex, *shm_mutex;
 pthread_mutex_t mutex_arrivals = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_departures = PTHREAD_MUTEX_INITIALIZER;
 queue_t *arrival_queue;
@@ -52,6 +52,14 @@ int main() {
     tower_mutex = sem_open("WAIT_TOWER", O_CREAT | O_EXCL, 0766, 1);
     if (tower_mutex == (sem_t *) -1) {
         perror("Tower semaphore creation failed");
+        exit(0);
+    }
+
+    // create shared memory slots mutex
+    sem_unlink("SHARED_MUTEX");
+    shm_mutex = sem_open("SHARED_MUTEX", O_CREAT | O_EXCL, 0766, 1);
+    if (shm_mutex == (sem_t *) -1) {
+        perror("Slots shm mutex creation failed");
         exit(0);
     }
 
@@ -100,8 +108,8 @@ int main() {
 
     //tower manager
     log_debug(NULL, "Creating Control Tower process...", ON);
+    sem_wait(tower_mutex);
     if ((control_tower = fork()) == 0) {
-        sem_wait(tower_mutex);
         signal(SIGINT, SIG_IGN);
         log_debug(NULL, "Control Tower Active...", ON);
         tower_manager();

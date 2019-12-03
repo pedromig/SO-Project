@@ -17,7 +17,7 @@ extern pthread_cond_t time_refresher;
 extern pid_t control_tower;
 extern FILE *log_file;
 extern shared_t *shm_struct;
-extern sem_t *mutex_log, *tower_mutex;
+extern sem_t *mutex_log, *tower_mutex, *shm_mutex;
 extern pthread_mutex_t mutex_arrivals, mutex_departures;
 extern queue_t *arrival_queue;
 extern queue_t *departure_queue;
