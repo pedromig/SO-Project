@@ -110,9 +110,9 @@ void* flights_updater(void* nothing){
         current = land_arrivals_queue->next;
         pthread_cond_wait(&(shm_struct->time_refresher),&mutextest);
         printf("Updating Fuel!\n");
-        while(current){
+        while(current){;
             --(current->flight.a_flight->fuel);
-            if ((current->flight.a_flight->fuel) <= (4 + current->flight.a_flight->eta + configs.landing_time)){
+            if ((current->flight.a_flight->fuel) <= (4 + current->flight.a_flight->init + configs.landing_time)){ //TODO: o init é o eta (ver linha...)
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[current->flight.a_flight->eta] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);

@@ -23,6 +23,10 @@
 
 pthread_mutex_t thread_array_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+pthread_mutex_t active_flights_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t active_flights_cond = PTHREAD_COND_INITIALIZER;
+int active_flights = 0;
+
 int isnumber(char *string) {
     int status = 1;
     int i, len = (int) strlen(string);
@@ -498,7 +502,9 @@ void *departure_execution(void *flight_info) {
     sprintf(str, "Ready to Fly! Departure flight [%s]", flight.d_flight->name);
     log_info(NULL, str, ON);
     memset(&str, 0, sizeof(str));
-
+    pthread_mutex_lock(&active_flights_mutex);
+    ++(active_flights);
+    pthread_mutex_unlock(&active_flights_mutex);
     //message setup
     departure_message.msg_type = (long) FLIGHT_THREAD_REQUEST;
     sem_wait(shm_mutex);
@@ -542,6 +548,10 @@ void *departure_execution(void *flight_info) {
 
     sem_post(shm_mutex);
     free(flight_info);
+    pthread_mutex_lock(&active_flights_mutex);
+    --(active_flights);
+    pthread_cond_broadcast(&active_flights_cond);
+    pthread_mutex_unlock(&active_flights_mutex);
     pthread_exit(NULL);
 }
 
@@ -552,8 +562,11 @@ void *arrival_execution(void *flight_info) {
     flight_t flight = *((flight_t *) flight_info);
     msg_t arrival_message, answer_msg;
     pthread_detach(pthread_self());
-    sprintf(str, "Ready to land! Arrival flight: %s", flight.d_flight->name);
-    log_info(NULL, str, ON);
+    sprintf(str, "%s flight created", flight.d_flight->name);
+    pthread_mutex_lock(&active_flights_mutex);
+    ++(active_flights);
+    pthread_mutex_unlock(&active_flights_mutex);
+    log_info(log_file, str, ON);
     memset(&str, 0, sizeof(str));
     original_fuel = flight.a_flight->fuel;
     do{
@@ -622,6 +635,13 @@ void *arrival_execution(void *flight_info) {
         }
     } while (flag_permission);
     free(flight_info);
+    sprintf(str, "%s flight terminated", flight.d_flight->name);
+    log_info(log_file, str, ON);
+    memset(&str, 0, sizeof(str));
+    pthread_mutex_lock(&active_flights_mutex);
+    --(active_flights);
+    pthread_cond_broadcast(&active_flights_cond);
+    pthread_mutex_unlock(&active_flights_mutex);
     pthread_exit(NULL);
 }
 
@@ -633,9 +653,6 @@ void end_program(int signo) {
     log_info(NULL, "Simulation Manager: Received SIGINT!", ON);
     log_debug(NULL, "Canceling and joining all threads...", ON);
 
-    pthread_cancel(timer_thread);
-    pthread_join(timer_thread, NULL);
-
     pthread_cancel(pipe_thread);
     pthread_join(pipe_thread, NULL);
 
@@ -644,14 +661,25 @@ void end_program(int signo) {
 
     pthread_cancel(arrivals_handler);
     pthread_join(arrivals_handler, NULL);
+
+    while(active_flights>0){
+        pthread_mutex_lock(&active_flights_mutex);
+        pthread_cond_wait(&active_flights_cond,&active_flights_mutex);
+        pthread_mutex_unlock(&active_flights_mutex);
+    }
+    pthread_cancel(timer_thread);
+    pthread_join(timer_thread, NULL);
     
-    log_debug(NULL, "DONE! (All Simulation Manager threads joined!)", ON);
+    log_debug(NULL, "DONE! (All threads joined!)", ON);
     
     log_debug(NULL, "Killing Control Tower process...", ON);
     kill(control_tower, SIGUSR2);
     wait(NULL);
     log_debug(NULL, "DONE! (Control Tower process terminated!)", ON);
-    
+
+    pthread_mutex_destroy(&active_flights_mutex);
+    pthread_cond_destroy(&active_flights_cond);
+
     pthread_mutex_destroy(&thread_array_mutex);
     printf("passou\n");
     pthread_mutex_destroy(&mutex_departures);
