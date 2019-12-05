@@ -199,10 +199,11 @@ void find_flight_TC(queue_t *head, queue_t **before, queue_t **current, int slot
 void remove_flight_TC(queue_t *head, int slot, flight_t *structure) {
     queue_t *current;
     queue_t *before;
-
     find_flight_TC(head, &before, &current, slot);
     if (current != NULL) {
-        memcpy(structure, &(current->flight), sizeof(current->flight));
+        if(structure != NULL){
+            memcpy(structure, &(current->flight), sizeof(current->flight));
+        }
         before->next = current->next;
         free(current);
     }
@@ -489,6 +490,7 @@ void *departures_creation(void *nothing) {
 
 //########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
 void *departure_execution(void *flight_info) {
+    int state;
     char str[BUF_SIZE*10];
     flight_t flight = *((flight_t *) flight_info);
     msg_t departure_message, answer_msg;
@@ -519,14 +521,25 @@ void *departure_execution(void *flight_info) {
     sprintf(str, "Departure flight [%s] --> Shared Memory Slot: %d", flight.d_flight->name, answer_msg.slot);
     log_info(NULL, str, ON);
 
-    
-    //TODO: wait for cond var change on slot to proceed
-    sleep(2+rand()%3);
+    do{
+        pthread_mutex_lock(&listener_mutex);
+        pthread_cond_wait(&(shm_struct->listener),&listener_mutex);
+        state = shm_struct->flight_ids[answer_msg.slot];
+        pthread_mutex_unlock(&listener_mutex);
+    } while (state == STATE_OCCUPIED);
+
     sem_wait(shm_mutex);
-    printf("Hasta la vista. Departure flight out. [%s] shm_slot = %d\n",flight.d_flight->name, answer_msg.slot);
-    shm_struct->flight_ids[answer_msg.slot] = 0;
-    ++(shm_struct->stats.total_departured);
-    (shm_struct->stats.avg_waiting_time_departure) += (get_time() - (flight.d_flight->takeoff));
+    if(answer_msg.slot != NOT_APLICABLE){
+        
+        printf("Hasta la vista. Departure flight out. [%s] shm_slot = %d\n",flight.d_flight->name, answer_msg.slot);
+        shm_struct->flight_ids[answer_msg.slot] = 0;
+        ++(shm_struct->stats.total_departured);
+        (shm_struct->stats.avg_waiting_time_departure) += (get_time() - (flight.d_flight->takeoff));
+        
+    } else {
+        ++(shm_struct->stats.rejected_flights);
+    }
+
     sem_post(shm_mutex);
     free(flight_info);
     pthread_exit(NULL);
@@ -565,40 +578,46 @@ void *arrival_execution(void *flight_info) {
         if (msgrcv(msqid, &answer_msg, sizeof(answer_msg), arrival_message.answer_msg_type, 0) < 0) {
             log_error(NULL, "Thread: Failed to receive message from the flight!", ON);
         }
+        if(answer_msg.slot != NOT_APLICABLE){
+            sprintf(str, "Arrival flight [%s] --> Shared Memory Slot: %d", flight.a_flight->name, answer_msg.slot);
+            log_info(NULL, str, ON);
+            do{
+                pthread_mutex_lock(&listener_mutex);
+                pthread_cond_wait(&(shm_struct->listener),&listener_mutex);
+                state = shm_struct->flight_ids[answer_msg.slot];
+                pthread_mutex_unlock(&listener_mutex);
+            } while (state == STATE_OCCUPIED);
 
-        sprintf(str, "Arrival flight [%s] --> Shared Memory Slot: %d", flight.a_flight->name, answer_msg.slot);
-        log_info(NULL, str, ON);
-
-        do{
-            pthread_mutex_lock(&listener_mutex);
-            pthread_cond_wait(&(shm_struct->listener),&listener_mutex);
-            state = shm_struct->flight_ids[answer_msg.slot];
-            pthread_mutex_unlock(&listener_mutex);
-        } while (state == STATE_OCCUPIED);
-
-        sem_wait(shm_mutex);
-        if (state == DETOUR){
-            log_detour(log_file,flight.a_flight->name,0,ON);
-            ++(shm_struct->stats.detour_flights);
-            flag_permission = OFF;
-        } else if (state == HOLDING){
-            flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
-            hold_value = configs.holding_min + (rand() % (configs.holding_max - configs.holding_min + 1));
-            log_holding(log_file,flight.a_flight->name,hold_value,ON);
-            (flight.a_flight->eta) += hold_value;
-            ++(shm_struct->stats.avg_holding_maneuvers_landing);
-            if(arrival_message.msg_type == (long)FLIGHT_PRIORITY_REQUEST){
-                ++(shm_struct->stats.avg_holding_maneuvers_emergency);
+            sem_wait(shm_mutex);
+            if (state == DETOUR){
+                log_detour(log_file,flight.a_flight->name,0,ON);
+                ++(shm_struct->stats.detour_flights);
+                flag_permission = OFF;
+            } else if (state == HOLDING){
+                flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
+                hold_value = configs.holding_min + (rand() % (configs.holding_max - configs.holding_min + 1));
+                log_holding(log_file,flight.a_flight->name,hold_value,ON);
+                (flight.a_flight->eta) += hold_value;
+                ++(shm_struct->stats.avg_holding_maneuvers_landing);
+                if(arrival_message.msg_type == (long)FLIGHT_PRIORITY_REQUEST){
+                    ++(shm_struct->stats.avg_holding_maneuvers_emergency);
+                }
+            } else {
+                printf("Landed sucessfully, roger. [%s] shm_slot = %d\n", flight.a_flight->name, answer_msg.slot);
+                ++(shm_struct->stats.total_landed);
+                (shm_struct->stats.avg_waiting_time_landing) += (get_time() - (flight.a_flight->eta));
+                flag_permission = OFF;
             }
+            shm_struct->flight_ids[answer_msg.slot] = STATE_FREE;
+            sem_post(shm_mutex);
         } else {
-            printf("Landed sucessfully, roger. [%s] shm_slot = %d\n", flight.a_flight->name, answer_msg.slot);
-            ++(shm_struct->stats.total_landed);
-            (shm_struct->stats.avg_waiting_time_landing) += (get_time() - (flight.a_flight->eta));
+            ++(shm_struct->stats.rejected_flights);
             flag_permission = OFF;
         }
-        shm_struct->flight_ids[answer_msg.slot] = STATE_FREE;
-        sem_post(shm_mutex);
     } while (flag_permission);
+    if(arrival_message.msg_type == (long)FLIGHT_PRIORITY_REQUEST){
+        ++(shm_struct->stats.aux_priority_flights);
+    }
     free(flight_info);
     pthread_exit(NULL);
 }
@@ -629,13 +648,19 @@ void end_program(int signo) {
     kill(control_tower, SIGUSR2);
     wait(NULL);
     log_debug(NULL, "DONE! (Control Tower process terminated!)", ON);
-
+    
     pthread_mutex_destroy(&thread_array_mutex);
+    printf("passou\n");
     pthread_mutex_destroy(&mutex_departures);
+    printf("passou\n");
     pthread_mutex_destroy(&mutex_arrivals);
+    printf("passou\n");
     pthread_cond_destroy(&(shm_struct->time_refresher));
+    printf("passou\n");
     pthread_cond_destroy(&(shm_struct->listener));
+    printf("passou\n");
     pthread_condattr_destroy(&shareable_cond);
+    printf("passou\n");
     
     log_debug(NULL, "Deleting Shared Memory...", ON);
     shmdt(shm_struct);

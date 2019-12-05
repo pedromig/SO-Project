@@ -58,6 +58,8 @@ typedef struct Statistics {
 
     int detour_flights;                     //Número de voos redirecionados
     int rejected_flights;                   //Número de voos Rejeitados pela Torre de Controlo
+
+    int aux_priority_flights;
 } stats_t;
 
 // Structure shared in memory
