@@ -25,19 +25,20 @@
 int shmid, fd, msqid, num_flights;
 shared_t *shm_struct;
 pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
-pthread_cond_t time_refresher = PTHREAD_COND_INITIALIZER;
+pthread_condattr_t shareable_cond;
 pid_t control_tower;
 FILE *log_file;
 sem_t *mutex_log, *tower_mutex, *shm_mutex;
 pthread_mutex_t mutex_arrivals = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_departures = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t listener_mutex = PTHREAD_MUTEX_INITIALIZER;
 queue_t *arrival_queue;
 queue_t *departure_queue;
 pthread_t *flight_threads;
-
+config_t configs;
 
 int main() {
-    config_t configs;
+    
 
     //create log mutex
     sem_unlink("LOG_MUTEX");
@@ -91,7 +92,10 @@ int main() {
         exit(0);
     }
     log_debug(NULL, "DONE! (Shared memory Attached!)", ON);
-
+    pthread_condattr_init(&shareable_cond);
+    pthread_condattr_setpshared(&shareable_cond,PTHREAD_PROCESS_SHARED); // diz que as variaveis de condição inicializadas com este objeto de atributos vão ser process-wide 
+    pthread_cond_init(&(shm_struct->time_refresher),&shareable_cond);
+    pthread_cond_init(&(shm_struct->listener), &shareable_cond);
 
     //initializing time and flight_ids array
     shm_struct->time = 0;
@@ -112,6 +116,7 @@ int main() {
     if ((control_tower = fork()) == 0) {
         signal(SIGINT, SIG_IGN);
         log_debug(NULL, "Control Tower Active...", ON);
+        printf("TOWER PID: %d\n",getpid());
         tower_manager();
         exit(0);
     }
@@ -182,6 +187,5 @@ int main() {
     //shutdown things
     signal(SIGINT,end_program);
     pause();
-
     exit(0);
 }

@@ -11,8 +11,8 @@
 #include "ControlTower.h"
 #include "logging.h"
 
-
-pthread_t talker;
+pthread_mutex_t mutextest = PTHREAD_MUTEX_INITIALIZER;
+pthread_t talker,updater;
 queue_t *fly_departures_queue, *land_arrivals_queue;
 
 void tower_manager() {
@@ -28,6 +28,11 @@ void tower_manager() {
         printf("Erro.\n");
         exit(0);
     }
+    if(pthread_create(&updater,NULL,flights_updater,NULL)){
+        printf("Erro.\n");
+        exit(0);
+    }
+
 
     while(1){
         pause();
@@ -44,7 +49,7 @@ void* msq_comunicator(void* nothing){
         msg_t message;
         departure_t *departure;
         arrival_t *arrival;
-        if (msgrcv(msqid, &message, sizeof(message), FLIGHT_THREAD_REQUEST, 0) < 0) {
+        if (msgrcv(msqid, &message, sizeof(message), -FLIGHT_THREAD_REQUEST, 0) < 0) {
             log_error(NULL, "Control Tower: Failed to receive message from the flight!", ON);
         }
         sem_wait(shm_mutex);
@@ -56,16 +61,15 @@ void* msq_comunicator(void* nothing){
                 departure = (departure_t*) malloc(sizeof(departure_t));
                 strcpy(departure->name,"NOT_APLICABLE");
                 departure->init = message.takeoff; // as funcs das queues já estão programadas para ordenar pelo init, então faz se este trick, e assim ordena se pelo takeoff
-                departure->takeoff = NOT_APLICABLE;
+                departure->takeoff = message.slot; // takeoff vai servir a partir de agora como a variavel que guarda o slot na shm deste voo
                 add_departure(fly_departures_queue,departure);
-            } else if( message.takeoff == NOT_APLICABLE  ){ // Significa que é um arrival TODO: ambiguo probably (porque ou é uma ou é outra, esta proteção a mais pode não fazer sentido)
+            } else if( message.takeoff == NOT_APLICABLE ){ // Significa que é um arrival TODO: ambiguo probably (porque ou é uma ou é outra, esta proteção a mais pode não fazer sentido)
                 arrival = (arrival_t*) malloc(sizeof(arrival_t));
                 strcpy(arrival->name,"NOT_APLICABLE");
                 arrival->init = message.eta; // mesmo trick (ordenar pelo ETA como diz no enunciado)
-                arrival->eta = NOT_APLICABLE;
+                arrival->eta = message.slot; // eta vai servir a partir de agora como a variavel que guarda o slot na shm deste voo
                 arrival->fuel = message.fuel;
                 add_arrival(land_arrivals_queue,arrival);
-                arrival = NULL;
             }
             message.msg_type = message.answer_msg_type;
             shm_struct->flight_ids[i] = STATE_OCCUPIED;
@@ -81,11 +85,48 @@ void* msq_comunicator(void* nothing){
 
 void stats_show(int signo) {
     signal(SIGUSR1,SIG_IGN);
-    printf("Show Stats\n");
+    sem_wait(shm_mutex);
+    log_info(NULL,"SIGUSR1 called --> Estatísticas!",ON);
+    printf("Total de voos criados: %d\n",shm_struct->stats.total_flights);
+    printf("    Total de voos que aterraram: %d\n",shm_struct->stats.total_landed);
+    printf("    Total de voos que descolaram: %d\n",shm_struct->stats.total_departured);
+    printf("Tempo médio de espera para aterrar: %.2f\n",shm_struct->stats.avg_waiting_time_landing/(double)shm_struct->stats.total_landed);
+    printf("Tempo médio de espera para descolar: %.2f\n",shm_struct->stats.avg_waiting_time_departure/(double)shm_struct->stats.total_departured);
+    printf("Número médio de manobras de HOLDING para voos de aterragem: %d\n",shm_struct->stats.avg_holding_maneuvers_landing);
+    printf("Número médio de manobras de HOLDING para voos urgentes: %d\n",shm_struct->stats.avg_holding_maneuvers_emergency);
+    printf("Número de voos redirecionados: %d\n",shm_struct->stats.detour_flights);
+    printf("Número de voos Rejeitados pela Torre de Controlo: %d\n",shm_struct->stats.rejected_flights);
+    sem_post(shm_mutex);
+}
+
+void* flights_updater(void* nothing){
+    queue_t *current;
+    while(1){
+        pthread_mutex_lock(&mutextest);
+        current = land_arrivals_queue->next;
+        pthread_cond_wait(&(shm_struct->time_refresher),&mutextest);
+        printf("Updating Fuel!\n");
+        while(current){
+            --(current->flight.a_flight->fuel);
+            if((current->flight.a_flight->fuel) == 0){
+                sem_wait(shm_mutex);
+                shm_struct->flight_ids[current->flight.a_flight->eta] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
+                pthread_mutex_lock(&mutex_arrivals);
+                remove_flight_TC(land_arrivals_queue,current->flight.a_flight->eta,NULL);
+                pthread_mutex_lock(&mutex_arrivals);
+                pthread_cond_broadcast(&(shm_struct->listener));
+                sem_post(shm_mutex);
+            }
+        }
+        pthread_mutex_unlock(&mutextest);
+    }
 }
 
 void cleanup(int signo) {
     printf("cleanup\n");
+    pthread_mutex_destroy(&mutextest);
+    pthread_cancel(updater);
+    pthread_join(updater,NULL);
     pthread_cancel(talker);
     pthread_join(talker,NULL);
     delete_queue(fly_departures_queue);

@@ -5,12 +5,11 @@
 #define DEPARTURE_FLIGHT 0
 #define ARRIVAL_FLIGHT 1
 
-#define FLIGHT_THREAD_REQUEST 1
+#define FLIGHT_THREAD_REQUEST 2
+#define FLIGHT_PRIORITY_REQUEST 1
 
-
-#define FLY_LAND_PERMISSION 11
 #define HOLDING 12
-#define DEFLECT 13
+#define DETOUR 13
 
 #define NOT_APLICABLE -1
 
@@ -44,20 +43,27 @@ typedef struct Queue {
 } queue_t;
 
 typedef struct Statistics {
-    int total_flights;
-    int total_departures;
-    int landed_flights;
-    int takeoff_flights;
-    int avg_waiting_time_landing;
-    int avg_waiting_time_departure;
-    int holding_maneuvers_landing;
-    int holding_maneuvers_emergency;
-    int detour_flights;
-    int rejected_flights;
+    int total_flights;                      //total voos criados
+
+    int total_landed;                       //total de voos que aterraram
+    int total_departured;                   //total de voos que descolaram
+
+    //tempo médio de espera para aterrar (para além do eta)
+    int avg_waiting_time_landing;           //soma de todos os tempos de espera arrivals: vai ser dividido pelo total_landed para ter a média
+    //tempo médio de espera para descolar (para além do takeoff(?))
+    int avg_waiting_time_departure;         //soma de todos os tempos de espera de departures: vai ser dividido pelo total_departured para ter a média
+   
+    int avg_holding_maneuvers_landing;      //Número médio de manobras de HOLDING para voos de aterragem
+    int avg_holding_maneuvers_emergency;    //Número médio de manobras de HOLDING para voos urgentes
+
+    int detour_flights;                     //Número de voos redirecionados
+    int rejected_flights;                   //Número de voos Rejeitados pela Torre de Controlo
 } stats_t;
 
 // Structure shared in memory
 typedef struct Shared {
+    pthread_cond_t listener;
+    pthread_cond_t time_refresher;
     stats_t stats;
     int time;
     int flight_ids[];

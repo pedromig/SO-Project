@@ -22,6 +22,12 @@ void print_queue(queue_t *head);
 
 queue_t *create_queue(int type);
 
+void remove_flight_TC(queue_t *head, int slot, flight_t *structure);
+
+void find_flight_TC(queue_t *head, queue_t **before, queue_t **current, int slot);
+
+void remove_flight(queue_t *head, int init, flight_t *structure);
+
 config_t read_configs(char *fname);
 
 void *pipe_reader(void *nothing);

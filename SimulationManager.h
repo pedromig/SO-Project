@@ -13,15 +13,15 @@
 
 extern int shmid, msqid, fd,num_flights;
 extern pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
-extern pthread_cond_t time_refresher;
+extern pthread_condattr_t shareable_cond;
 extern pid_t control_tower;
 extern FILE *log_file;
 extern shared_t *shm_struct;
 extern sem_t *mutex_log, *tower_mutex, *shm_mutex;
-extern pthread_mutex_t mutex_arrivals, mutex_departures;
+extern pthread_mutex_t mutex_arrivals, mutex_departures, listener_mutex;
 extern queue_t *arrival_queue;
 extern queue_t *departure_queue;
 extern pthread_t *flight_threads;
-
+extern config_t configs;
 
 #endif //SIMULATION_MANAGER_H
