@@ -10,6 +10,7 @@
 
 #define HOLDING 12
 #define DETOUR 13
+#define EMERGENCY 14
 
 #define NOT_APLICABLE -1
 

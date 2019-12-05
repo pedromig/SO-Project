@@ -574,6 +574,9 @@ void *arrival_execution(void *flight_info) {
         if (msgsnd(msqid, &arrival_message, sizeof(arrival_message) - sizeof(long), IPC_NOWAIT)) {
             log_error(NULL, "Failed to send message to the Control Tower", ON);
         }
+        if(arrival_message.msg_type == (long) FLIGHT_PRIORITY_REQUEST){ 
+            log_emergency(log_file,flight.a_flight->name,ON);
+        }// escrever mensagem de urgência para o log e para o terminal;
 
         if (msgrcv(msqid, &answer_msg, sizeof(answer_msg), arrival_message.answer_msg_type, 0) < 0) {
             log_error(NULL, "Thread: Failed to receive message from the flight!", ON);
@@ -602,6 +605,9 @@ void *arrival_execution(void *flight_info) {
                 if(arrival_message.msg_type == (long)FLIGHT_PRIORITY_REQUEST){
                     ++(shm_struct->stats.avg_holding_maneuvers_emergency);
                 }
+            } else if (state == EMERGENCY){
+                ++(shm_struct->stats.aux_priority_flights);
+                flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
             } else {
                 printf("Landed sucessfully, roger. [%s] shm_slot = %d\n", flight.a_flight->name, answer_msg.slot);
                 ++(shm_struct->stats.total_landed);
@@ -615,9 +621,6 @@ void *arrival_execution(void *flight_info) {
             flag_permission = OFF;
         }
     } while (flag_permission);
-    if(arrival_message.msg_type == (long)FLIGHT_PRIORITY_REQUEST){
-        ++(shm_struct->stats.aux_priority_flights);
-    }
     free(flight_info);
     pthread_exit(NULL);
 }

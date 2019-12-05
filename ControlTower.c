@@ -112,6 +112,16 @@ void* flights_updater(void* nothing){
         printf("Updating Fuel!\n");
         while(current){
             --(current->flight.a_flight->fuel);
+            if ((current->flight.a_flight->fuel) <= (4 + current->flight.a_flight->eta + configs.landing_time)){
+                sem_wait(shm_mutex);
+                shm_struct->flight_ids[current->flight.a_flight->eta] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
+                pthread_mutex_lock(&mutex_arrivals);
+                remove_flight_TC(land_arrivals_queue,current->flight.a_flight->eta,NULL);
+                pthread_mutex_unlock(&mutex_arrivals);
+                pthread_cond_broadcast(&(shm_struct->listener));
+                sem_post(shm_mutex);
+            }
+            //TODO: este if não é necessário pq todos os voos antes de chegarem a zero são redirecionados para a queue de emergência
             if((current->flight.a_flight->fuel) == 0){
                 printf("É zero!\n");
                 sem_wait(shm_mutex);

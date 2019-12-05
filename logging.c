@@ -214,7 +214,7 @@ void log_detour(FILE *fp, char *flight, int fuel, int terminal) {
 
     sem_wait(mutex_log);
     if (terminal)
-        fprintf(TERMINAL, "%s%s%s %s %s => FUEL => %d\n", LBLUE, time, RESET, flight, "LEAVING TO OTHER AIRPORT", fuel);
+        fprintf(TERMINAL, "%s%s%s %s %s => FUEL = %d\n", LBLUE, time, RESET, flight, "LEAVING TO OTHER AIRPORT", fuel);
     fprintf(fp, "%s %s %s => FUEL => %d\n", time, flight, "LEAVING TO OTHER AIRPORT", fuel);
     sem_post(mutex_log);
 }
