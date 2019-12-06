@@ -8,6 +8,7 @@
 #define FLIGHT_THREAD_REQUEST 2
 #define FLIGHT_PRIORITY_REQUEST 1
 
+#define FLY_LAND 15
 #define HOLDING 12
 #define DETOUR 13
 #define EMERGENCY 14

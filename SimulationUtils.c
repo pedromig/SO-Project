@@ -21,11 +21,15 @@
 
 #define LINE_BUF 30
 
+pthread_mutex_t pthread_runway_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 pthread_mutex_t thread_array_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_mutex_t active_flights_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t active_flights_cond = PTHREAD_COND_INITIALIZER;
+
 int active_flights = 0;
+int flying_landing_flights = 0;
 
 int isnumber(char *string) {
     int status = 1;
@@ -494,8 +498,8 @@ void *departures_creation(void *nothing) {
 
 //########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
 void *departure_execution(void *flight_info) {
-    int state;
-    char str[BUF_SIZE*10];
+    int state, runway_position;
+    char str[BUF_SIZE*10], *runway_names[2] = {"01L","01R"};
     flight_t flight = *((flight_t *) flight_info);
     msg_t departure_message, answer_msg;
     pthread_detach(pthread_self());
@@ -536,29 +540,47 @@ void *departure_execution(void *flight_info) {
 
     sem_wait(shm_mutex);
     if(answer_msg.slot != NOT_APLICABLE){
-        
-        printf("Hasta la vista. Departure flight out. [%s] shm_slot = %d\n",flight.d_flight->name, answer_msg.slot);
-        shm_struct->flight_ids[answer_msg.slot] = 0;
-        ++(shm_struct->stats.total_departured);
+
+        pthread_mutex_lock(&pthread_runway_mutex);
+        if(flying_landing_flights == 0){
+            sem_wait(runway_mutex);
+        }
+        runway_position = flying_landing_flights;
+        ++flying_landing_flights;
+        pthread_mutex_unlock(&pthread_runway_mutex);
+
         (shm_struct->stats.avg_waiting_time_departure) += (get_time() - (flight.d_flight->takeoff));
+        log_departure(log_file,flight.d_flight->name,runway_names[runway_position],STARTED,ON);
+        usleep(configs.takeoff_time*configs.time_units*1000);
+        log_departure(log_file,flight.d_flight->name,runway_names[runway_position],CONCLUDED,ON);
+        ++(shm_struct->stats.total_departured);
+
+        pthread_mutex_lock(&pthread_runway_mutex);
+        --flying_landing_flights;
+        if(flying_landing_flights == 0){
+            sem_post(runway_mutex);
+        }
+        pthread_mutex_unlock(&pthread_runway_mutex);
         
+        shm_struct->flight_ids[answer_msg.slot] = STATE_FREE;
     } else {
         ++(shm_struct->stats.rejected_flights);
     }
-
     sem_post(shm_mutex);
+
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
+    log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
     pthread_exit(NULL);
 }
 
 void *arrival_execution(void *flight_info) {
-    int state, flag_permission = ON, hold_value;
+    int state, flag_permission = ON, hold_value, runway_position;
     int original_fuel;
-    char str[BUF_SIZE*10];
+    char str[BUF_SIZE*10], *runway_names[2] = {"28L","28R"};
     flight_t flight = *((flight_t *) flight_info);
     msg_t arrival_message, answer_msg;
     pthread_detach(pthread_self());
@@ -603,46 +625,81 @@ void *arrival_execution(void *flight_info) {
                 state = shm_struct->flight_ids[answer_msg.slot];
                 pthread_mutex_unlock(&listener_mutex);
             } while (state == STATE_OCCUPIED);
-
-            sem_wait(shm_mutex);
+            printf("REECEBEU\n");
+            
             if (state == DETOUR){
                 log_detour(log_file,flight.a_flight->name,0,ON);
+                sem_wait(shm_mutex);
                 ++(shm_struct->stats.detour_flights);
+                sem_post(shm_mutex);
                 flag_permission = OFF;
             } else if (state == HOLDING){
                 flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
                 hold_value = configs.holding_min + (rand() % (configs.holding_max - configs.holding_min + 1));
                 log_holding(log_file,flight.a_flight->name,hold_value,ON);
                 (flight.a_flight->eta) += hold_value;
+                sem_wait(shm_mutex);
                 ++(shm_struct->stats.avg_holding_maneuvers_landing);
                 if(arrival_message.msg_type == (long)FLIGHT_PRIORITY_REQUEST){
                     ++(shm_struct->stats.avg_holding_maneuvers_emergency);
                 }
+                sem_post(shm_mutex);
             } else if (state == EMERGENCY){
+                sem_wait(shm_mutex);
                 ++(shm_struct->stats.aux_priority_flights);
+                sem_post(shm_mutex);
                 flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
-                printf("calculated: %d - (%d - %d) = %d\n",original_fuel,get_time(),flight.a_flight->init,flight.a_flight->fuel);
-            } else {
-                printf("Landed sucessfully, roger. [%s] shm_slot = %d\n", flight.a_flight->name, answer_msg.slot);
-                ++(shm_struct->stats.total_landed);
+                //printf("calculated: %d - (%d - %d) = %d\n",original_fuel,get_time(),flight.a_flight->init,flight.a_flight->fuel);
+            } else {//landing
+                pthread_mutex_lock(&pthread_runway_mutex);
+                if(flying_landing_flights == 0){
+                    printf("RUNWAY POS: %d\n",runway_position);
+                    sem_wait(runway_mutex);
+                }
+                runway_position = flying_landing_flights;
+                ++flying_landing_flights;
+                pthread_mutex_unlock(&pthread_runway_mutex);
+
+                sem_wait(shm_mutex);
                 (shm_struct->stats.avg_waiting_time_landing) += (get_time() - (flight.a_flight->eta));
+                sem_post(shm_mutex);
+
+                log_landing(log_file,flight.a_flight->name,runway_names[runway_position],STARTED,ON);
+                usleep(configs.landing_time*configs.time_units*1000);
+                log_landing(log_file,flight.a_flight->name,runway_names[runway_position],CONCLUDED,ON);
+
+                sem_wait(shm_mutex);
+                ++(shm_struct->stats.total_landed);
+                sem_post(shm_mutex);
+                
+
+                pthread_mutex_lock(&pthread_runway_mutex);
+                --flying_landing_flights;
+                if(flying_landing_flights == 0){
+                    sem_post(runway_mutex);
+                }
+                pthread_mutex_unlock(&pthread_runway_mutex);
                 flag_permission = OFF;
             }
+            sem_wait(shm_mutex);
             shm_struct->flight_ids[answer_msg.slot] = STATE_FREE;
             sem_post(shm_mutex);
         } else {
+            sem_wait(shm_mutex);
             ++(shm_struct->stats.rejected_flights);
+            sem_post(shm_mutex);
+            sprintf(str, "%s flight rejected", flight.d_flight->name);
+            log_info(log_file, str, ON);
+            memset(&str, 0, sizeof(str));
             flag_permission = OFF;
         }
     } while (flag_permission);
     free(flight_info);
-    sprintf(str, "%s flight terminated", flight.d_flight->name);
-    log_info(log_file, str, ON);
-    memset(&str, 0, sizeof(str));
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
+    log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
     pthread_exit(NULL);
 }
 
@@ -678,6 +735,8 @@ void end_program(int signo) {
     wait(NULL);
     log_debug(NULL, "DONE! (Control Tower process terminated!)", ON);
 
+    pthread_mutex_destroy(&pthread_runway_mutex);
+
     pthread_mutex_destroy(&active_flights_mutex);
     pthread_cond_destroy(&active_flights_cond);
 
@@ -687,10 +746,11 @@ void end_program(int signo) {
     printf("passou\n");
     pthread_mutex_destroy(&mutex_arrivals);
     printf("passou\n");
-    pthread_cond_destroy(&(shm_struct->time_refresher));
-    printf("passou\n");
     pthread_cond_destroy(&(shm_struct->listener));
     printf("passou\n");
+    pthread_cond_destroy(&(shm_struct->time_refresher));
+    printf("passou\n");
+   
     pthread_condattr_destroy(&shareable_cond);
     printf("passou\n");
     
@@ -719,6 +779,9 @@ void end_program(int signo) {
 
     sem_unlink("SHARED_MUTEX");
     sem_close(shm_mutex);
+
+    sem_unlink("RUNWAY_LOCKER");
+    sem_close(runway_mutex);
     log_debug(NULL, "DONE! (Wait Tower and shm semaphores unlinked and deleted!)", ON);
 
     log_debug(NULL, "Closing log file, unlinking pipe and deleting the semaphores!...", ON);

@@ -87,12 +87,11 @@ void log_landing(FILE *fp, char *flight, char *runway, int state, int terminal) 
         fprintf(fp, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "started");
     } else if (state == CONCLUDED) {
         if (terminal)
-            fprintf(fp, "%s%s%s %s %s %s %s \n", LBLUE, time, RESET, flight, "LANDING", runway, "concluded");
+            fprintf(TERMINAL, "%s%s%s %s %s %s %s \n", LBLUE, time, RESET, flight, "LANDING", runway, "concluded");
         fprintf(fp, "%s %s %s %s %s \n", time, flight, "LANDING", runway, "concluded");
     } else {
         fprintf(fp, "Invalid log!...\n");
     }
-
     sem_post(mutex_log);
 }
 

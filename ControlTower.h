@@ -17,6 +17,8 @@ void stats_show(int signo);
 
 void* flights_updater(void* nothing);
 
+void* dispatcher_func(void* nothing);
+
 void cleanup(int signo);
 
 #endif // CONTROL_TOWER_H

@@ -17,7 +17,7 @@ extern pthread_condattr_t shareable_cond;
 extern pid_t control_tower;
 extern FILE *log_file;
 extern shared_t *shm_struct;
-extern sem_t *mutex_log, *tower_mutex, *shm_mutex;
+extern sem_t *mutex_log, *tower_mutex, *shm_mutex, *runway_mutex;
 extern pthread_mutex_t mutex_arrivals, mutex_departures, listener_mutex;
 extern queue_t *arrival_queue;
 extern queue_t *departure_queue;

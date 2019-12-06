@@ -28,7 +28,7 @@ pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
 pthread_condattr_t shareable_cond;
 pid_t control_tower;
 FILE *log_file;
-sem_t *mutex_log, *tower_mutex, *shm_mutex;
+sem_t *mutex_log, *tower_mutex, *shm_mutex, *runway_mutex;
 pthread_mutex_t mutex_arrivals = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_departures = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t listener_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -56,6 +56,13 @@ int main() {
         exit(0);
     }
 
+    // create shared memory slots mutex
+    sem_unlink("RUNWAY_LOCKER");
+    runway_mutex = sem_open("RUNWAY_LOCKER", O_CREAT | O_EXCL, 0766, 1);
+    if (runway_mutex == (sem_t *) -1) {
+        perror("Runway locker creation failed");
+        exit(0);
+    }
     // create shared memory slots mutex
     sem_unlink("SHARED_MUTEX");
     shm_mutex = sem_open("SHARED_MUTEX", O_CREAT | O_EXCL, 0766, 1);
