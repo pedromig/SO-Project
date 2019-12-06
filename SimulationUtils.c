@@ -621,6 +621,7 @@ void *arrival_execution(void *flight_info) {
             } else if (state == EMERGENCY){
                 ++(shm_struct->stats.aux_priority_flights);
                 flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
+                printf("calculated: %d - (%d - %d) = %d\n",original_fuel,get_time(),flight.a_flight->init,flight.a_flight->fuel);
             } else {
                 printf("Landed sucessfully, roger. [%s] shm_slot = %d\n", flight.a_flight->name, answer_msg.slot);
                 ++(shm_struct->stats.total_landed);

@@ -107,11 +107,13 @@ void* flights_updater(void* nothing){
     queue_t *current;
     while(1){
         pthread_mutex_lock(&mutextest);
-        current = land_arrivals_queue->next;
+        
         pthread_cond_wait(&(shm_struct->time_refresher),&mutextest);
+        current = land_arrivals_queue->next;
         printf("Updating Fuel!\n");
-        while(current){;
+        while(current){
             --(current->flight.a_flight->fuel);
+            //printf("Fuel : %d\n",current->flight.a_flight->fuel);
             if ((current->flight.a_flight->fuel) <= (4 + current->flight.a_flight->init + configs.landing_time)){ //TODO: o init é o eta (ver linha...)
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[current->flight.a_flight->eta] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
@@ -123,7 +125,7 @@ void* flights_updater(void* nothing){
             }
             //TODO: este if não é necessário pq todos os voos antes de chegarem a zero são redirecionados para a queue de emergência
             if((current->flight.a_flight->fuel) == 0){
-                printf("É zero!\n");
+                
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[current->flight.a_flight->eta] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);
@@ -137,7 +139,9 @@ void* flights_updater(void* nothing){
         current = emergency_arrivals_queue->next;
         while(current){// TODO: kind of copy paste por preguiça
             --(current->flight.a_flight->fuel);
+            //printf("Fuel esp: %d\n",(current->flight.a_flight->fuel));
             if((current->flight.a_flight->fuel) == 0){
+                printf("É zero!\n");
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[current->flight.a_flight->eta] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);
