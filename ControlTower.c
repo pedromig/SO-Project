@@ -11,7 +11,7 @@
 #include "ControlTower.h"
 #include "logging.h"
 
-pthread_mutex_t mutextest = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutextest = PTHREAD_MUTEX_INITIALIZER; //TODO: change name
 pthread_t talker,updater;
 queue_t *fly_departures_queue, *land_arrivals_queue, *emergency_arrivals_queue;
 
@@ -105,16 +105,17 @@ void stats_show(int signo) {
 
 void* flights_updater(void* nothing){
     queue_t *current;
+    int flight_counter;
     while(1){
         pthread_mutex_lock(&mutextest);
-        
         pthread_cond_wait(&(shm_struct->time_refresher),&mutextest);
         current = land_arrivals_queue->next;
+        flight_counter = 0;
         printf("Updating Fuel!\n");
         while(current){
             --(current->flight.a_flight->fuel);
             //printf("Fuel : %d\n",current->flight.a_flight->fuel);
-            if ((current->flight.a_flight->fuel) <= (4 + current->flight.a_flight->init + configs.landing_time)){ //TODO: o init é o eta (ver linha...)
+            if ((current->flight.a_flight->fuel) <= (4 + current->flight.a_flight->init + configs.landing_time)){ //TODO: o init => eta (ver linha...)
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[current->flight.a_flight->eta] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);
@@ -123,21 +124,13 @@ void* flights_updater(void* nothing){
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
             }
-            //TODO: este if não é necessário pq todos os voos antes de chegarem a zero são redirecionados para a queue de emergência
-            if((current->flight.a_flight->fuel) == 0){
-                
-                sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->eta] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
-                pthread_mutex_lock(&mutex_arrivals);
-                remove_flight_TC(land_arrivals_queue,current->flight.a_flight->eta,NULL);
-                pthread_mutex_unlock(&mutex_arrivals);
-                pthread_cond_broadcast(&(shm_struct->listener));
-                sem_post(shm_mutex);
-            }
             current = current->next;
         }
+
         current = emergency_arrivals_queue->next;
-        while(current){// TODO: kind of copy paste por preguiça
+
+        while(current){
+            ++flight_counter;
             --(current->flight.a_flight->fuel);
             //printf("Fuel esp: %d\n",(current->flight.a_flight->fuel));
             if((current->flight.a_flight->fuel) == 0){
@@ -147,7 +140,15 @@ void* flights_updater(void* nothing){
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->eta,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
-                
+                pthread_cond_broadcast(&(shm_struct->listener));
+                sem_post(shm_mutex);
+            }
+            if ((flight_counter > 5) && (current->flight.a_flight->init == get_time())){ // init => eta (ver linha XXX)
+                sem_wait(shm_mutex);
+                shm_struct->flight_ids[current->flight.a_flight->eta] = HOLDING; // eta == slot em shm (ver linha 70 deste ficheiro)
+                pthread_mutex_lock(&mutex_arrivals);
+                remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->eta,NULL);
+                pthread_mutex_unlock(&mutex_arrivals);
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
             }
@@ -167,6 +168,5 @@ void cleanup(int signo) {
     delete_queue(fly_departures_queue);
     delete_queue(land_arrivals_queue);
     delete_queue(emergency_arrivals_queue);
-
     exit(0);
 }
