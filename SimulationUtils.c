@@ -528,8 +528,8 @@ void *departure_execution(void *flight_info) {
         log_error(NULL, "Thread: Failed to receive message from the flight!", ON);
     }
 
-    sprintf(str, "Departure flight [%s] --> Shared Memory Slot: %d", flight.d_flight->name, answer_msg.slot);
-    log_info(NULL, str, ON);
+    //sprintf(str, "Departure flight [%s] --> Shared Memory Slot: %d", flight.d_flight->name, answer_msg.slot);
+    //log_info(NULL, str, ON);
 
     do{
         pthread_mutex_lock(&listener_mutex);
@@ -618,8 +618,8 @@ void *arrival_execution(void *flight_info) {
             log_error(NULL, "Thread: Failed to receive message from the flight!", ON);
         }
         if(answer_msg.slot != NOT_APLICABLE){
-            sprintf(str, "Arrival flight [%s] --> Shared Memory Slot: %d", flight.a_flight->name, answer_msg.slot);
-            log_info(NULL, str, ON);
+            //sprintf(str, "Arrival flight [%s] --> Shared Memory Slot: %d", flight.a_flight->name, answer_msg.slot);
+            //log_info(NULL, str, ON);
             do{
                 pthread_mutex_lock(&listener_mutex);
                 pthread_cond_wait(&(shm_struct->listener),&listener_mutex);
