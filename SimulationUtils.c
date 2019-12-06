@@ -499,7 +499,7 @@ void *departures_creation(void *nothing) {
 //########################################  ARRIVAL/DEPARTURE EXECUTION HANDLERS ##################################
 void *departure_execution(void *flight_info) {
     int state, runway_position;
-    char str[BUF_SIZE*10], *runway_names[2] = {"01L","01R"};
+    char str[BUF_SIZE*10], runway_names[2][4] = {"01L","01R"};
     flight_t flight = *((flight_t *) flight_info);
     msg_t departure_message, answer_msg;
     pthread_detach(pthread_self());
@@ -571,16 +571,17 @@ void *departure_execution(void *flight_info) {
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
+    log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
-    log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
+    
     pthread_exit(NULL);
 }
 
 void *arrival_execution(void *flight_info) {
     int state, flag_permission = ON, hold_value, runway_position;
     int original_fuel;
-    char str[BUF_SIZE*10], *runway_names[2] = {"28L","28R"};
+    char str[BUF_SIZE*10], runway_names[2][4] = {"28L","28R"};
     flight_t flight = *((flight_t *) flight_info);
     msg_t arrival_message, answer_msg;
     pthread_detach(pthread_self());
@@ -625,7 +626,6 @@ void *arrival_execution(void *flight_info) {
                 state = shm_struct->flight_ids[answer_msg.slot];
                 pthread_mutex_unlock(&listener_mutex);
             } while (state == STATE_OCCUPIED);
-            printf("REECEBEU\n");
             
             if (state == DETOUR){
                 log_detour(log_file,flight.a_flight->name,0,ON);
@@ -653,7 +653,6 @@ void *arrival_execution(void *flight_info) {
             } else {//landing
                 pthread_mutex_lock(&pthread_runway_mutex);
                 if(flying_landing_flights == 0){
-                    printf("RUNWAY POS: %d\n",runway_position);
                     sem_wait(runway_mutex);
                 }
                 runway_position = flying_landing_flights;
@@ -697,9 +696,9 @@ void *arrival_execution(void *flight_info) {
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
+    log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
-    log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
     pthread_exit(NULL);
 }
 
@@ -707,7 +706,7 @@ void *arrival_execution(void *flight_info) {
 void end_program(int signo) {
     signal(SIGINT,SIG_IGN);
     printf("\n");
-
+    
     log_info(NULL, "Simulation Manager: Received SIGINT!", ON);
     log_debug(NULL, "Canceling and joining all threads...", ON);
 
@@ -720,13 +719,14 @@ void end_program(int signo) {
     pthread_cancel(arrivals_handler);
     pthread_join(arrivals_handler, NULL);
 
-    while(active_flights>0){
-        pthread_mutex_lock(&active_flights_mutex);
-        pthread_cond_wait(&active_flights_cond,&active_flights_mutex);
+    pthread_mutex_lock(&active_flights_mutex);
+    while (active_flights > 0) {
+        pthread_cond_wait(&active_flights_cond, &active_flights_mutex);
         pthread_mutex_unlock(&active_flights_mutex);
+        pthread_mutex_lock(&active_flights_mutex);
     }
-    pthread_cancel(timer_thread);
-    pthread_join(timer_thread, NULL);
+    pthread_mutex_unlock(&active_flights_mutex);
+   
     
     log_debug(NULL, "DONE! (All threads joined!)", ON);
     
@@ -735,24 +735,18 @@ void end_program(int signo) {
     wait(NULL);
     log_debug(NULL, "DONE! (Control Tower process terminated!)", ON);
 
-    pthread_mutex_destroy(&pthread_runway_mutex);
+    pthread_cancel(timer_thread);
+    pthread_join(timer_thread, NULL);
 
+    pthread_mutex_destroy(&pthread_runway_mutex);
     pthread_mutex_destroy(&active_flights_mutex);
     pthread_cond_destroy(&active_flights_cond);
-
     pthread_mutex_destroy(&thread_array_mutex);
-    printf("passou\n");
     pthread_mutex_destroy(&mutex_departures);
-    printf("passou\n");
     pthread_mutex_destroy(&mutex_arrivals);
-    printf("passou\n");
     pthread_cond_destroy(&(shm_struct->listener));
-    printf("passou\n");
     pthread_cond_destroy(&(shm_struct->time_refresher));
-    printf("passou\n");
-   
     pthread_condattr_destroy(&shareable_cond);
-    printf("passou\n");
     
     log_debug(NULL, "Deleting Shared Memory...", ON);
     shmdt(shm_struct);
@@ -790,14 +784,14 @@ void end_program(int signo) {
 
     close(fd);
     unlink(PIPE_NAME);
-    fclose(log_file);
+    
 
     log_debug(NULL, "DONE! (Closing file, unlinking the named pipe and deleting semaphores!)", ON);
     log_status(NULL, CONCLUDED, ON);
 
     sem_unlink("LOG_MUTEX");
     sem_close(mutex_log);
-
+    fclose(log_file);
     exit(0);
 }
 //(Unlinking and deleting semaphores and closing log file!)

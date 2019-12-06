@@ -12,7 +12,7 @@
 #include "logging.h"
 
 pthread_mutex_t mutextest = PTHREAD_MUTEX_INITIALIZER; //TODO: change name
-pthread_t talker, updater, escalonador, dispatcher;
+pthread_t talker, updater, dispatcher;
 queue_t *fly_departures_queue, *land_arrivals_queue, *emergency_arrivals_queue;
 
 void tower_manager() {
@@ -165,9 +165,9 @@ void* dispatcher_func(void* nothing){
     while(1){
         pthread_mutex_lock(&mutextest);
         pthread_cond_wait(&(shm_struct->time_refresher),&mutextest);
-        pthread_mutex_unlock(&mutextest);
+        
         time = get_time();
-        printf("disp\n");
+        printf("Checking...\n");
         if(emergency_arrivals_queue->next && emergency_arrivals_queue->next->flight.a_flight->init <= time){ // se tiver algum arrival prioritário, então aterra
             sem_wait(shm_mutex);
             shm_struct->flight_ids[emergency_arrivals_queue->next->flight.a_flight->eta] = FLY_LAND;
@@ -193,7 +193,7 @@ void* dispatcher_func(void* nothing){
             }
             pthread_cond_broadcast(&(shm_struct->listener));
         } else if (fly_departures_queue->next && fly_departures_queue->next && fly_departures_queue->next->flight.d_flight->init <= time){ // caso contrário, vai ao departures e descolam 1 ou 2 voos
-            for (i = 0; i < 2 && fly_departures_queue->next; i++){//TODO:
+            for (i = 0; i < 2 && fly_departures_queue->next &&(fly_departures_queue->next->flight.d_flight->init <= time); i++){
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[fly_departures_queue->next->flight.d_flight->takeoff] = FLY_LAND;
                 sem_post(shm_mutex);
@@ -203,9 +203,7 @@ void* dispatcher_func(void* nothing){
             }   
             pthread_cond_broadcast(&(shm_struct->listener));  
         } else if(land_arrivals_queue->next && land_arrivals_queue->next->flight.a_flight->init <= time){ //caso não houver nenhum voo prioritário nem nenhum para descolar, vai ao arrivals, e aterram 1 ou 2 voos
-            printf("aqui\n");
             for (i = 0; i < 2 && land_arrivals_queue->next && (land_arrivals_queue->next->flight.a_flight->init <= time); i++){
-                printf("kkk\n");
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[land_arrivals_queue->next->flight.a_flight->eta] = FLY_LAND;
                 sem_post(shm_mutex);
@@ -215,8 +213,7 @@ void* dispatcher_func(void* nothing){
             }
             pthread_cond_broadcast(&(shm_struct->listener));
         }
-        
-        
+        pthread_mutex_unlock(&mutextest);        
         //espera que a pista fique livre para escalonar mais voos
         sem_wait(runway_mutex);
         sem_post(runway_mutex);
@@ -226,22 +223,20 @@ void* dispatcher_func(void* nothing){
 
 void cleanup(int signo) {
     printf("cleanup\n");
-    
-    pthread_cancel(dispatcher);
-    pthread_join(dispatcher,NULL);
 
     pthread_cancel(updater);
     pthread_join(updater,NULL);
+    pthread_cancel(dispatcher);
 
+    //pthread_join(dispatcher,NULL);
+    
     pthread_cancel(talker);
     pthread_join(talker,NULL);
-    
-
-
     
     delete_queue(fly_departures_queue);
     delete_queue(land_arrivals_queue);
     delete_queue(emergency_arrivals_queue);
     pthread_mutex_destroy(&mutextest);
+    printf("cleanup end\n");
     exit(0);
 }

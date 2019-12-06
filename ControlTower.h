@@ -6,7 +6,7 @@
 
 #define NUM_THREADS 1
 
-extern pthread_t talker;
+extern pthread_t talker, updater, dispatcher;
 extern queue_t *fly_departures_queue, *land_arrivals_queue;
 
 void tower_manager();
