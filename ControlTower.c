@@ -61,25 +61,40 @@ void* msq_comunicator(void* nothing){
         if (i < num_flights){ //isto pq o "i" pode falhar pela primeira condição: com (i == num_flights) e (shm_struct->flight_ids[int]) não é possivel...
             message.slot = i;   
             if( message.fuel == NOT_APLICABLE ){ // Significa que é um departure
-                departure = (departure_t*) malloc(sizeof(departure_t));
-                strcpy(departure->name,"NOT_APLICABLE");
-                departure->init = message.takeoff; // as funcs das queues já estão programadas para ordenar pelo init, então faz se este trick, e assim ordena se pelo takeoff
-                departure->flight_id = message.slot;
-                add_departure(fly_departures_queue,departure);
-            } else { // Significa que é um arrival TODO: ambiguo probably (porque ou é uma ou é outra, esta proteção a mais pode não fazer sentido)
-                arrival = (arrival_t*) malloc(sizeof(arrival_t));
-                strcpy(arrival->name,"NOT_APLICABLE");
-                arrival->init = message.eta; // mesmo trick (ordenar pelo ETA como diz no enunciado)
-                arrival->eta = message.takeoff; //eta == original_Eta
-                arrival->fuel = message.fuel;
-                arrival->flight_id = message.slot;
-                if (message.msg_type == FLIGHT_PRIORITY_REQUEST){
-                    add_arrival_TC(emergency_arrivals_queue,arrival);
+                sem_wait(shm_mutex);
+                if(shm_struct->active_departures < configs.max_departures){
+                    sem_post(shm_mutex);
+                    departure = (departure_t*) malloc(sizeof(departure_t));
+                    strcpy(departure->name,"NOT_APLICABLE");
+                    departure->init = message.takeoff; // o init passa a ser o momento em que os voos querem descolar
+                    departure->flight_id = message.slot;
+                    add_departure(fly_departures_queue,departure);
+                    shm_struct->flight_ids[i] = STATE_OCCUPIED;
                 } else {
-                    add_arrival_TC(land_arrivals_queue,arrival);
+                    sem_post(shm_mutex);
+                    message.slot = NOT_APLICABLE;
+                }
+            } else { // caso contrário significa que é um arrival 
+                sem_wait(shm_mutex);
+                if (shm_struct->active_arrivals < configs.max_arrivals){ 
+                    sem_post(shm_mutex);
+                    arrival = (arrival_t*) malloc(sizeof(arrival_t));
+                    strcpy(arrival->name,"NOT_APLICABLE");
+                    arrival->init = message.eta; // o init passa a ser o momento em que os voos querem descolar
+                    arrival->eta = message.takeoff; //eta == original_Eta
+                    arrival->fuel = message.fuel; 
+                    arrival->flight_id = message.slot;
+                    if (message.msg_type == FLIGHT_PRIORITY_REQUEST){
+                        add_arrival_TC(emergency_arrivals_queue,arrival);
+                    } else {
+                        add_arrival_TC(land_arrivals_queue,arrival);
+                    }
+                    shm_struct->flight_ids[i] = STATE_OCCUPIED;
+                } else {
+                    sem_post(shm_mutex);
+                    message.slot = NOT_APLICABLE;
                 }
             }
-            shm_struct->flight_ids[i] = STATE_OCCUPIED;
         } else {
             message.slot = NOT_APLICABLE;           //TUDO CHEIO
         }
@@ -119,9 +134,9 @@ void* flights_updater(void* nothing){
         while(current){
             --(current->flight.a_flight->fuel);
             printf("Fuel : %d   %d\n",current->flight.a_flight->fuel,current->flight.a_flight->init);
-            if ((current->flight.a_flight->fuel) <= (4 + (current->flight.a_flight->init - current->flight.a_flight->eta) + configs.landing_time)){ //TODO: o init => eta (ver linha...)
+            if ((current->flight.a_flight->fuel) <= (4 + (current->flight.a_flight->init - current->flight.a_flight->eta) + configs.landing_time)){ 
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->flight_id] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = EMERGENCY; 
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(land_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
@@ -140,16 +155,16 @@ void* flights_updater(void* nothing){
             if((current->flight.a_flight->fuel) == 0){
                 printf("É zero!\n");
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->flight_id] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = DETOUR; 
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
             }
-            if ((flight_counter > 5) && (current->flight.a_flight->init == time)){ // init => eta (ver linha XXX)
+            if ((flight_counter > 5) && (current->flight.a_flight->init == time)){ 
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->flight_id] = HOLDING; // eta == slot em shm (ver linha 70 deste ficheiro)
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = HOLDING; 
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);

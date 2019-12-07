@@ -69,6 +69,7 @@ typedef struct Shared {
     pthread_cond_t listener;
     pthread_cond_t time_refresher;
     stats_t stats;
+    int active_arrivals, active_departures;
     int time;
     int flight_ids[];
 } shared_t;

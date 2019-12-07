@@ -530,6 +530,9 @@ void *departure_execution(void *flight_info) {
     memset(&str, 0, sizeof(str));
     pthread_mutex_lock(&active_flights_mutex);
     ++(active_flights);
+    sem_wait(shm_mutex);
+    ++(shm_struct->active_departures);
+    sem_post(shm_mutex);
     pthread_mutex_unlock(&active_flights_mutex);
     //message setup
     departure_message.msg_type = (long) FLIGHT_THREAD_REQUEST;
@@ -599,7 +602,10 @@ void *departure_execution(void *flight_info) {
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
-    //log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
+    sem_wait(shm_mutex);
+    --(shm_struct->active_departures);
+    sem_post(shm_mutex);
+    log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
     
@@ -616,6 +622,9 @@ void *arrival_execution(void *flight_info) {
     sprintf(str, "%s flight created", flight.d_flight->name);
     pthread_mutex_lock(&active_flights_mutex);
     ++(active_flights);
+    sem_wait(shm_mutex);
+    ++(shm_struct->active_arrivals);
+    sem_post(shm_mutex);
     pthread_mutex_unlock(&active_flights_mutex);
     log_info(log_file, str, ON);
     memset(&str, 0, sizeof(str));
@@ -723,7 +732,10 @@ void *arrival_execution(void *flight_info) {
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
-    //log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
+    sem_wait(shm_mutex);
+    --(shm_struct->active_arrivals);
+    sem_post(shm_mutex);
+    log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
     pthread_exit(NULL);
