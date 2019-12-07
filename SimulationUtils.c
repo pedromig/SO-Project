@@ -538,22 +538,24 @@ void *departure_execution(void *flight_info) {
         pthread_mutex_unlock(&listener_mutex);
     } while (state == STATE_OCCUPIED);
 
-    sem_wait(shm_mutex);
     if(answer_msg.slot != NOT_APLICABLE){
 
         pthread_mutex_lock(&pthread_runway_mutex);
-        if(flying_landing_flights == 0){
-            sem_wait(runway_mutex);
-        }
         runway_position = flying_landing_flights;
         ++flying_landing_flights;
         pthread_mutex_unlock(&pthread_runway_mutex);
 
+        sem_wait(shm_mutex);
         (shm_struct->stats.avg_waiting_time_departure) += (get_time() - (flight.d_flight->takeoff));
+        sem_post(shm_mutex);
+
         log_departure(log_file,flight.d_flight->name,runway_names[runway_position],STARTED,ON);
         usleep(configs.takeoff_time*configs.time_units*1000);
         log_departure(log_file,flight.d_flight->name,runway_names[runway_position],CONCLUDED,ON);
+
+        sem_wait(shm_mutex);
         ++(shm_struct->stats.total_departured);
+        sem_post(shm_mutex);
 
         pthread_mutex_lock(&pthread_runway_mutex);
         --flying_landing_flights;
@@ -561,17 +563,21 @@ void *departure_execution(void *flight_info) {
             sem_post(runway_mutex);
         }
         pthread_mutex_unlock(&pthread_runway_mutex);
-        
+
+        sem_wait(shm_mutex);
         shm_struct->flight_ids[answer_msg.slot] = STATE_FREE;
+        sem_post(shm_mutex);
+
     } else {
+        sem_wait(shm_mutex);
         ++(shm_struct->stats.rejected_flights);
+        sem_post(shm_mutex);
     }
-    sem_post(shm_mutex);
 
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
-    log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
+    //log_info(log_file,"DEPARTURE THREAD EXITED!",ON);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
     
@@ -580,7 +586,7 @@ void *departure_execution(void *flight_info) {
 
 void *arrival_execution(void *flight_info) {
     int state, flag_permission = ON, hold_value, runway_position;
-    int original_fuel;
+    int original_fuel, original_eta;
     char str[BUF_SIZE*10], runway_names[2][4] = {"28L","28R"};
     flight_t flight = *((flight_t *) flight_info);
     msg_t arrival_message, answer_msg;
@@ -592,6 +598,7 @@ void *arrival_execution(void *flight_info) {
     log_info(log_file, str, ON);
     memset(&str, 0, sizeof(str));
     original_fuel = flight.a_flight->fuel;
+    original_eta = flight.a_flight->eta;
     do{
         if (flight.a_flight->fuel <= (4 + flight.a_flight->eta + configs.landing_time)){ 
             arrival_message.msg_type = (long) FLIGHT_PRIORITY_REQUEST;
@@ -604,7 +611,8 @@ void *arrival_execution(void *flight_info) {
         arrival_message.slot = NOT_APLICABLE; 
         arrival_message.takeoff = NOT_APLICABLE;
         arrival_message.fuel = flight.a_flight->fuel;
-        arrival_message.eta = flight.a_flight->eta;
+        arrival_message.eta = flight.a_flight->eta + flight.a_flight->init;
+        arrival_message.takeoff = original_eta;
         //message queue functions
 
         if (msgsnd(msqid, &arrival_message, sizeof(arrival_message) - sizeof(long), IPC_NOWAIT)) {
@@ -651,16 +659,14 @@ void *arrival_execution(void *flight_info) {
                 flight.a_flight->fuel = (original_fuel - (get_time() - flight.a_flight->init));
                 //printf("calculated: %d - (%d - %d) = %d\n",original_fuel,get_time(),flight.a_flight->init,flight.a_flight->fuel);
             } else {//landing
+
                 pthread_mutex_lock(&pthread_runway_mutex);
-                if(flying_landing_flights == 0){
-                    sem_wait(runway_mutex);
-                }
                 runway_position = flying_landing_flights;
                 ++flying_landing_flights;
                 pthread_mutex_unlock(&pthread_runway_mutex);
 
                 sem_wait(shm_mutex);
-                (shm_struct->stats.avg_waiting_time_landing) += (get_time() - (flight.a_flight->eta));
+                (shm_struct->stats.avg_waiting_time_landing) += (get_time() - (flight.a_flight->init + original_eta));
                 sem_post(shm_mutex);
 
                 log_landing(log_file,flight.a_flight->name,runway_names[runway_position],STARTED,ON);
@@ -696,7 +702,7 @@ void *arrival_execution(void *flight_info) {
     free(flight_info);
     pthread_mutex_lock(&active_flights_mutex);
     --(active_flights);
-    log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
+    //log_info(log_file,"ARRIVAL THREAD EXITED!",ON);
     pthread_cond_broadcast(&active_flights_cond);
     pthread_mutex_unlock(&active_flights_mutex);
     pthread_exit(NULL);
