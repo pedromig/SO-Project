@@ -74,9 +74,9 @@ void* msq_comunicator(void* nothing){
                 arrival->fuel = message.fuel;
                 arrival->flight_id = message.slot;
                 if (message.msg_type == FLIGHT_PRIORITY_REQUEST){
-                    add_arrival(emergency_arrivals_queue,arrival);
+                    add_arrival_TC(emergency_arrivals_queue,arrival);
                 } else {
-                    add_arrival(land_arrivals_queue,arrival);
+                    add_arrival_TC(land_arrivals_queue,arrival);
                 }
             }
             shm_struct->flight_ids[i] = STATE_OCCUPIED;

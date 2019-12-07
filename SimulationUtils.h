@@ -16,6 +16,8 @@ arrival_t *check_arrival(char *buffer, int current_time);
 
 void add_arrival(queue_t *head, arrival_t *flight);
 
+void add_arrival_TC(queue_t *head, arrival_t *flight);
+
 void add_departure(queue_t *head, departure_t *flight);
 
 void print_queue(queue_t *head);
