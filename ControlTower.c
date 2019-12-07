@@ -64,15 +64,15 @@ void* msq_comunicator(void* nothing){
                 departure = (departure_t*) malloc(sizeof(departure_t));
                 strcpy(departure->name,"NOT_APLICABLE");
                 departure->init = message.takeoff; // as funcs das queues já estão programadas para ordenar pelo init, então faz se este trick, e assim ordena se pelo takeoff
-                departure->takeoff = message.slot; // takeoff vai servir a partir de agora como a variavel que guarda o slot na shm deste voo
+                departure->flight_id = message.slot;
                 add_departure(fly_departures_queue,departure);
             } else { // Significa que é um arrival TODO: ambiguo probably (porque ou é uma ou é outra, esta proteção a mais pode não fazer sentido)
                 arrival = (arrival_t*) malloc(sizeof(arrival_t));
                 strcpy(arrival->name,"NOT_APLICABLE");
                 arrival->init = message.eta; // mesmo trick (ordenar pelo ETA como diz no enunciado)
-                arrival->eta = message.slot; // eta vai servir a partir de agora como a variavel que guarda o slot na shm deste voo
+                arrival->eta = message.takeoff; //eta == original_Eta
                 arrival->fuel = message.fuel;
-                arrival->flight_id = message.takeoff; //flight_id == original_Eta
+                arrival->flight_id = message.slot;
                 if (message.msg_type == FLIGHT_PRIORITY_REQUEST){
                     add_arrival(emergency_arrivals_queue,arrival);
                 } else {
@@ -119,12 +119,11 @@ void* flights_updater(void* nothing){
         while(current){
             --(current->flight.a_flight->fuel);
             printf("Fuel : %d   %d\n",current->flight.a_flight->fuel,current->flight.a_flight->init);
-            if ((current->flight.a_flight->fuel) <= (4 + (current->flight.a_flight->init - current->flight.a_flight->flight_id) + configs.landing_time)){ //TODO: o init => eta (ver linha...)
+            if ((current->flight.a_flight->fuel) <= (4 + (current->flight.a_flight->init - current->flight.a_flight->eta) + configs.landing_time)){ //TODO: o init => eta (ver linha...)
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->eta] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = EMERGENCY; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);
-                printf("#\n#\n#\n#\n#\n#REMOVEU2#\n#\n#\n#\n#\n");
-                remove_flight_TC(land_arrivals_queue,current->flight.a_flight->eta,NULL);
+                remove_flight_TC(land_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
@@ -141,18 +140,18 @@ void* flights_updater(void* nothing){
             if((current->flight.a_flight->fuel) == 0){
                 printf("É zero!\n");
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->eta] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = DETOUR; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);
-                remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->eta,NULL);
+                remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
             }
             if ((flight_counter > 5) && (current->flight.a_flight->init == time)){ // init => eta (ver linha XXX)
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->eta] = HOLDING; // eta == slot em shm (ver linha 70 deste ficheiro)
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = HOLDING; // eta == slot em shm (ver linha 70 deste ficheiro)
                 pthread_mutex_lock(&mutex_arrivals);
-                remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->eta,NULL);
+                remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
@@ -176,25 +175,24 @@ void* dispatcher_func(void* nothing){
         printf("Checking...\n");
         if(emergency_arrivals_queue->next && emergency_arrivals_queue->next->flight.a_flight->init <= time){ // se tiver algum arrival prioritário, então aterra
             sem_wait(shm_mutex);
-            shm_struct->flight_ids[emergency_arrivals_queue->next->flight.a_flight->eta] = FLY_LAND;
+            shm_struct->flight_ids[emergency_arrivals_queue->next->flight.a_flight->flight_id] = FLY_LAND;
             sem_post(shm_mutex);
             pthread_mutex_lock(&mutex_arrivals);
-            remove_flight_TC(emergency_arrivals_queue,emergency_arrivals_queue->next->flight.a_flight->eta,NULL);
+            remove_flight_TC(emergency_arrivals_queue,emergency_arrivals_queue->next->flight.a_flight->flight_id,NULL);
             pthread_mutex_unlock(&mutex_arrivals);
             if(emergency_arrivals_queue->next && emergency_arrivals_queue->next->flight.a_flight->init <= time){// se tiver outro arrival prioritário, também aterra
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[emergency_arrivals_queue->next->flight.a_flight->eta] = FLY_LAND;
+                shm_struct->flight_ids[emergency_arrivals_queue->next->flight.a_flight->flight_id] = FLY_LAND;
                 sem_post(shm_mutex);
                 pthread_mutex_lock(&mutex_arrivals);
-                remove_flight_TC(emergency_arrivals_queue,emergency_arrivals_queue->next->flight.a_flight->eta,NULL);
+                remove_flight_TC(emergency_arrivals_queue,emergency_arrivals_queue->next->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
             } else if(land_arrivals_queue->next && land_arrivals_queue->next->flight.a_flight->init <= time){// se não tiver um segundo arrival prioritário, vê se tem algum nos arrivals normais
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[land_arrivals_queue->next->flight.a_flight->eta] = FLY_LAND;
+                shm_struct->flight_ids[land_arrivals_queue->next->flight.a_flight->flight_id] = FLY_LAND;
                 sem_post(shm_mutex);
                 pthread_mutex_lock(&mutex_arrivals);
-                printf("#\n#\n#\n#\n#\n#REMOVEU1#\n#\n#\n#\n#\n");
-                remove_flight_TC(land_arrivals_queue,land_arrivals_queue->next->flight.a_flight->eta,NULL);
+                remove_flight_TC(land_arrivals_queue,land_arrivals_queue->next->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
             }
             pthread_cond_broadcast(&(shm_struct->listener));
@@ -202,32 +200,25 @@ void* dispatcher_func(void* nothing){
         } else if (fly_departures_queue->next && fly_departures_queue->next && fly_departures_queue->next->flight.d_flight->init <= time){ // caso contrário, vai ao departures e descolam 1 ou 2 voos
             for (i = 0; i < 2 && fly_departures_queue->next && (fly_departures_queue->next->flight.d_flight->init <= time); i++){
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[fly_departures_queue->next->flight.d_flight->takeoff] = FLY_LAND;
+                shm_struct->flight_ids[fly_departures_queue->next->flight.d_flight->flight_id] = FLY_LAND;
                 sem_post(shm_mutex);
                 pthread_mutex_lock(&mutex_departures);
-                remove_flight_TC(fly_departures_queue,fly_departures_queue->next->flight.d_flight->takeoff,NULL);
+                remove_flight_TC(fly_departures_queue,fly_departures_queue->next->flight.d_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_departures);
             }   
             pthread_cond_broadcast(&(shm_struct->listener));  
             any_to_fly_flag = 1;
-        } else {
-            printf("Passou1\n");
-            if(land_arrivals_queue->next){ //caso não houver nenhum voo prioritário nem nenhum para descolar, vai ao arrivals, e aterram 1 ou 2 voos
-                printf("Passou2\n");
-                printf("init = %d  time = %d\n",land_arrivals_queue->next->flight.a_flight->init,time);
-                if(land_arrivals_queue->next->flight.a_flight->init <= time){
-                    for (i = 0; i < 2 && land_arrivals_queue->next && (land_arrivals_queue->next->flight.a_flight->init <= time); i++){
-                    sem_wait(shm_mutex);
-                    shm_struct->flight_ids[land_arrivals_queue->next->flight.a_flight->eta] = FLY_LAND;
-                    sem_post(shm_mutex);
-                    pthread_mutex_lock(&mutex_arrivals);
-                    remove_flight_TC(land_arrivals_queue,land_arrivals_queue->next->flight.a_flight->eta,NULL);
-                    pthread_mutex_unlock(&mutex_arrivals);
-                }
-                pthread_cond_broadcast(&(shm_struct->listener));
-                any_to_fly_flag = 1;
-                }
+        } else if(land_arrivals_queue->next &&land_arrivals_queue->next->flight.a_flight->init <= time) {//caso não houver nenhum voo prioritário nem nenhum para descolar, vai ao arrivals, e aterram 1 ou 2 voos
+            for (i = 0; i < 2 && land_arrivals_queue->next && (land_arrivals_queue->next->flight.a_flight->init <= time); i++){
+                sem_wait(shm_mutex);
+                shm_struct->flight_ids[land_arrivals_queue->next->flight.a_flight->flight_id] = FLY_LAND;
+                sem_post(shm_mutex);
+                pthread_mutex_lock(&mutex_arrivals);
+                remove_flight_TC(land_arrivals_queue,land_arrivals_queue->next->flight.a_flight->flight_id,NULL);
+                pthread_mutex_unlock(&mutex_arrivals);
             }
+            pthread_cond_broadcast(&(shm_struct->listener));
+            any_to_fly_flag = 1;
         }
         pthread_mutex_unlock(&mutextest); 
         if(any_to_fly_flag){

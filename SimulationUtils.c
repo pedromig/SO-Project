@@ -186,19 +186,19 @@ void find_flight_TC(queue_t *head, queue_t **before, queue_t **current, int slot
     *before = head;
     *current = head->next;
     if (head->type == ARRIVAL_FLIGHT) {
-        while ((*current) && (*current)->flight.a_flight->eta != slot) {
+        while ((*current) && (*current)->flight.a_flight->flight_id != slot) {
             *before = *current;
             *current = (*current)->next;
         }
-        if ((*current) && (*current)->flight.a_flight->eta != slot) {
+        if ((*current) && (*current)->flight.a_flight->flight_id != slot) {
             *current = NULL;
         }
     } else {
-        while ((*current) && (*current)->flight.d_flight->takeoff != slot) {
+        while ((*current) && (*current)->flight.d_flight->flight_id != slot) {
             *before = *current;
             *current = (*current)->next;
         }
-        if ((*current) && (*current)->flight.d_flight->takeoff != slot) {
+        if ((*current) && (*current)->flight.d_flight->flight_id != slot) {
             *current = NULL;
         }
     }
@@ -609,7 +609,6 @@ void *arrival_execution(void *flight_info) {
         arrival_message.answer_msg_type = (long) shm_struct->stats.total_flights + FLIGHT_THREAD_REQUEST + 1;
         sem_post(shm_mutex);
         arrival_message.slot = NOT_APLICABLE; 
-        arrival_message.takeoff = NOT_APLICABLE;
         arrival_message.fuel = flight.a_flight->fuel;
         arrival_message.eta = flight.a_flight->eta + flight.a_flight->init;
         arrival_message.takeoff = original_eta;
