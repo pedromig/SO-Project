@@ -1,3 +1,10 @@
+/*
+ *      ControlTower.h
+ *
+ *      Copyright 2019 Miguel Rabuge Nº 2018293728
+ *      Copyright 2019 Pedro Rodrigues Nº 2018283166
+ */
+
 #ifndef CONTROL_TOWER_H
 #define CONTROL_TOWER_H
 

@@ -1,8 +1,8 @@
 /*
  *      logging.c
  *
- *      Copyright 2019 Miguel Rabuge
- *      Copyright 2019 Pedro Rodrigues
+ *      Copyright 2019 Miguel Rabuge Nº 2018293728
+ *      Copyright 2019 Pedro Rodrigues Nº 2018283166
  */
 
 // C standard library includes

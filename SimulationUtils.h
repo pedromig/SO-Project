@@ -1,10 +1,15 @@
+/*
+ *      SimulationUtils.h
+ *
+ *      Copyright 2019 Miguel Rabuge Nº 2018293728
+ *      Copyright 2019 Pedro Rodrigues Nº 2018283166
+ */
+
 #ifndef SO_PROJECT_SIMULATIONUTILS_H
 #define SO_PROJECT_SIMULATIONUTILS_H
 
 #define STATE_FREE 0
 #define STATE_OCCUPIED 1
-#define JOIN_THREAD -1
-
 
 extern pthread_mutex_t thread_array_mutex;
 

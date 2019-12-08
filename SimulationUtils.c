@@ -1,8 +1,8 @@
 /*
  *      SimulationUtils.c
  *
- *      Copyright 2019 Miguel Rabuge
- *      Copyright 2019 Pedro Rodrigues
+ *      Copyright 2019 Miguel Rabuge Nº 2018293728
+ *      Copyright 2019 Pedro Rodrigues Nº 2018283166
  */
 
 // C standard library includes
@@ -592,6 +592,7 @@ void *departure_execution(void *flight_info) {
 
     if (answer_msg.slot != NOT_APLICABLE) {
 
+        // Adquire runway
         pthread_mutex_lock(&pthread_runway_mutex);
         runway_position = flying_landing_flights;
         ++flying_landing_flights;
@@ -611,6 +612,7 @@ void *departure_execution(void *flight_info) {
         ++(shm_struct->stats.total_departured);
         sem_post(shm_mutex);
 
+        // Release runway
         pthread_mutex_lock(&pthread_runway_mutex);
         --flying_landing_flights;
         if (flying_landing_flights == 0) {

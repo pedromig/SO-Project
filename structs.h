@@ -1,23 +1,32 @@
+/*
+ *      structs.h
+ *
+ *      Copyright 2019 Miguel Rabuge Nº 2018293728
+ *      Copyright 2019 Pedro Rodrigues Nº 2018283166
+ */
 
 #ifndef STRUCTS_H
 #define STRUCTS_H
 
+// Flight type definitions
 #define DEPARTURE_FLIGHT 0
 #define ARRIVAL_FLIGHT 1
 
+// Predefined message types
 #define FLIGHT_THREAD_REQUEST 2
 #define FLIGHT_PRIORITY_REQUEST 1
+#define NOT_APLICABLE -1
 
+// Flight maneuver commands
 #define FLY_LAND 15
 #define HOLDING 12
 #define DETOUR 13
 #define EMERGENCY 14
 
-#define NOT_APLICABLE -1
-
+// A generic buffer size
 #define BUF_SIZE 1024
 
-// Flight Structure
+// Arrival Flight Structure
 typedef struct ArrivalFlight {
     char name[BUF_SIZE];
     int flight_id;
@@ -26,6 +35,7 @@ typedef struct ArrivalFlight {
     int fuel;
 } arrival_t;
 
+// Departure Flight Structure
 typedef struct DepartureFlight {
     char name[BUF_SIZE];
     int flight_id;
@@ -33,33 +43,35 @@ typedef struct DepartureFlight {
     int takeoff;
 } departure_t;
 
+// Union that represent a flight
 typedef union Flight {
     arrival_t *a_flight;
     departure_t *d_flight;
 } flight_t;
 
+// Linked List / Queue structure
 typedef struct Queue {
     int type;
     flight_t flight;
     struct Queue *next;
 } queue_t;
 
+// Statistics structure in shared memory
 typedef struct Statistics {
-    int total_flights;                      //total voos criados
 
-    int total_landed;                       //total de voos que aterraram
-    int total_departured;                   //total de voos que descolaram
+    int total_flights;                      // Total flights created
 
-    //tempo médio de espera para aterrar (para além do eta)
-    int avg_waiting_time_landing;           //soma de todos os tempos de espera arrivals: vai ser dividido pelo total_landed para ter a média
-    //tempo médio de espera para descolar (para além do takeoff(?))
-    int avg_waiting_time_departure;         //soma de todos os tempos de espera de departures: vai ser dividido pelo total_departured para ter a média
-   
-    int avg_holding_maneuvers_landing;      //Número médio de manobras de HOLDING para voos de aterragem
-    int avg_holding_maneuvers_emergency;    //Número médio de manobras de HOLDING para voos urgentes
+    int total_landed;                       // Number of flights that landed
+    int total_departured;                   // Number of departured flights
 
-    int detour_flights;                     //Número de voos redirecionados
-    int rejected_flights;                   //Número de voos Rejeitados pela Torre de Controlo
+    int avg_waiting_time_landing;           // Average wait time to land
+    int avg_waiting_time_departure;         // Average wait time to departure
+
+    int avg_holding_maneuvers_landing;      // Average Number of holding maneuvers for landing flights
+    int avg_holding_maneuvers_emergency;    // Average Number of holding maneuver for emergency flights
+
+    int detour_flights;                     // Number of detoured flights
+    int rejected_flights;                   // Number of rejected flights
 
     int aux_priority_flights;
 } stats_t;
@@ -92,7 +104,7 @@ typedef struct Configurations {
 
 } config_t;
 
-
+// Message structure
 typedef struct FlightMessage {
     long msg_type;
     long answer_msg_type;
