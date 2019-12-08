@@ -1,16 +1,30 @@
+/*
+ *      SimulationManager.c
+ *
+ *      Copyright 2019 Miguel Rabuge
+ *      Copyright 2019 Pedro Rodrigues
+ */
+
 #ifndef SIMULATION_MANAGER_H
 #define SIMULATION_MANAGER_H
 
-
+// Pipe name definition
 #define PIPE_NAME "input_pipe"
+
+// Configuration file name definition
 #define CONFIG_PATH "config.txt"
+
+// Standard buffer size used across the program
 #define BUF_SIZE 1024
 
-
+// C standard library includes
 #include <pthread.h>
 
+// Other includes
 #include "structs.h"
 
+
+// Global variables
 extern int shmid, msqid, fd,num_flights;
 extern pthread_t timer_thread, pipe_thread, arrivals_handler, departures_handler;
 extern pthread_condattr_t shareable_cond;

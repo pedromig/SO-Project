@@ -3,6 +3,10 @@
 
 #define STATE_FREE 0
 #define STATE_OCCUPIED 1
+#define JOIN_THREAD -1
+
+
+extern pthread_mutex_t thread_array_mutex;
 
 #include "structs.h"
 
@@ -38,12 +42,12 @@ void end_program(int signo);
 
 void delete_queue(queue_t *head);
 
-void* arrivals_creation(void* nothing);
+void *arrivals_creation(void *nothing);
 
-void* departures_creation(void* nothing);
+void *departures_creation(void *nothing);
 
-void* departure_execution(void *flight_info);
+void *departure_execution(void *flight_info);
 
-void* arrival_execution(void *flight_info);
-  
+void *arrival_execution(void *flight_info);
+
 #endif //SO_PROJECT_SIMULATIONUTILS_H

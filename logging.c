@@ -1,3 +1,11 @@
+/*
+ *      logging.c
+ *
+ *      Copyright 2019 Miguel Rabuge
+ *      Copyright 2019 Pedro Rodrigues
+ */
+
+// C standard library includes
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -197,7 +205,6 @@ void log_emergency(FILE *fp, char *flight, int terminal) {
 /**
  * This function logs a detour flight
  * to the other airport.
- * TODO: Maybe missing some parameters... not sure
  * 
  * @param fp File pointer to the output stream
  * @param flight The flight we want to log
@@ -238,12 +245,12 @@ void log_status(FILE *fp, int program_status, int terminal) {
         if (terminal)
             fprintf(TERMINAL, "%s%s%s %s<----- SIMULATION MANAGER STARTED ----->%s\n", LBLUE, time, RESET, GREEN,
                     RESET);
-        if(fp)
+        if (fp)
             fprintf(fp, "%s <----- SIMULATION MANAGER STARTED ----->\n", time);
     } else if (program_status == CONCLUDED) {
         if (terminal)
             fprintf(TERMINAL, "%s%s%s %s<----- SIMULATION MANAGER ENDED ----->%s\n", LBLUE, time, RESET, GREEN, RESET);
-        if(fp)
+        if (fp)
             fprintf(fp, "%s <----- SIMULATION MANAGER ENDED ----->\n", time);
     } else {
         printf("Invalid log!...\n");

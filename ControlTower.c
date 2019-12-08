@@ -1,3 +1,10 @@
+/*
+ *      SimulationManager.c
+ *
+ *      Copyright 2019 Miguel Rabuge
+ *      Copyright 2019 Pedro Rodrigues
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,7 +12,6 @@
 #include <sys/msg.h>
 #include <signal.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 #include "SimulationUtils.h"
 #include "ControlTower.h"
@@ -18,7 +24,7 @@ queue_t *fly_departures_queue, *land_arrivals_queue, *emergency_arrivals_queue;
 
 void tower_manager() {
     sem_post(tower_mutex);
-    signal(SIGINT,SIG_IGN);
+
     signal(SIGUSR1,stats_show);
     signal(SIGUSR2,cleanup);
 
@@ -59,7 +65,7 @@ void* msq_comunicator(void* nothing){
         for (i = 0; (i < num_flights) && (shm_struct->flight_ids[i] != STATE_FREE); i++); // iterar até encontrar um slot a zero
         sem_post(shm_mutex);
         if (i < num_flights){ //isto pq o "i" pode falhar pela primeira condição: com (i == num_flights) e (shm_struct->flight_ids[int]) não é possivel...
-            message.slot = i;   
+            message.slot = i;
             if( message.fuel == NOT_APLICABLE ){ // Significa que é um departure
                 sem_wait(shm_mutex);
                 if(shm_struct->active_departures < configs.max_departures){
@@ -76,13 +82,13 @@ void* msq_comunicator(void* nothing){
                 }
             } else { // caso contrário significa que é um arrival 
                 sem_wait(shm_mutex);
-                if (shm_struct->active_arrivals < configs.max_arrivals){ 
+                if (shm_struct->active_arrivals < configs.max_arrivals){
                     sem_post(shm_mutex);
                     arrival = (arrival_t*) malloc(sizeof(arrival_t));
                     strcpy(arrival->name,"NOT_APLICABLE");
                     arrival->init = message.eta; // o init passa a ser o momento em que os voos querem descolar
                     arrival->eta = message.takeoff; //eta == original_Eta
-                    arrival->fuel = message.fuel; 
+                    arrival->fuel = message.fuel;
                     arrival->flight_id = message.slot;
                     if (message.msg_type == FLIGHT_PRIORITY_REQUEST){
                         add_arrival_TC(emergency_arrivals_queue,arrival);
@@ -134,9 +140,9 @@ void* flights_updater(void* nothing){
         while(current){
             --(current->flight.a_flight->fuel);
             printf("Fuel : %d   %d\n",current->flight.a_flight->fuel,current->flight.a_flight->init);
-            if ((current->flight.a_flight->fuel) <= (4 + (current->flight.a_flight->init - current->flight.a_flight->eta) + configs.landing_time)){ 
+            if ((current->flight.a_flight->fuel) <= (4 + (current->flight.a_flight->init - current->flight.a_flight->eta) + configs.landing_time)){
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->flight_id] = EMERGENCY; 
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = EMERGENCY;
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(land_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
@@ -155,16 +161,16 @@ void* flights_updater(void* nothing){
             if((current->flight.a_flight->fuel) == 0){
                 printf("É zero!\n");
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->flight_id] = DETOUR; 
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = DETOUR;
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
                 pthread_cond_broadcast(&(shm_struct->listener));
                 sem_post(shm_mutex);
             }
-            if ((flight_counter > 5) && (current->flight.a_flight->init == time)){ 
+            if ((flight_counter > 5) && (current->flight.a_flight->init == time)){
                 sem_wait(shm_mutex);
-                shm_struct->flight_ids[current->flight.a_flight->flight_id] = HOLDING; 
+                shm_struct->flight_ids[current->flight.a_flight->flight_id] = HOLDING;
                 pthread_mutex_lock(&mutex_arrivals);
                 remove_flight_TC(emergency_arrivals_queue,current->flight.a_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_arrivals);
@@ -212,7 +218,7 @@ void* dispatcher_func(void* nothing){
             }
             pthread_cond_broadcast(&(shm_struct->listener));
             any_to_fly_flag = 1;
-        } else if (fly_departures_queue->next && fly_departures_queue->next && fly_departures_queue->next->flight.d_flight->init <= time){ // caso contrário, vai ao departures e descolam 1 ou 2 voos
+        } else if (fly_departures_queue->next != NULL && fly_departures_queue->next->flight.d_flight->init <= time){ // caso contrário, vai ao departures e descolam 1 ou 2 voos
             for (i = 0; i < 2 && fly_departures_queue->next && (fly_departures_queue->next->flight.d_flight->init <= time); i++){
                 sem_wait(shm_mutex);
                 shm_struct->flight_ids[fly_departures_queue->next->flight.d_flight->flight_id] = FLY_LAND;
@@ -220,8 +226,8 @@ void* dispatcher_func(void* nothing){
                 pthread_mutex_lock(&mutex_departures);
                 remove_flight_TC(fly_departures_queue,fly_departures_queue->next->flight.d_flight->flight_id,NULL);
                 pthread_mutex_unlock(&mutex_departures);
-            }   
-            pthread_cond_broadcast(&(shm_struct->listener));  
+            }
+            pthread_cond_broadcast(&(shm_struct->listener));
             any_to_fly_flag = 1;
         } else if(land_arrivals_queue->next &&land_arrivals_queue->next->flight.a_flight->init <= time) {//caso não houver nenhum voo prioritário nem nenhum para descolar, vai ao arrivals, e aterram 1 ou 2 voos
             for (i = 0; i < 2 && land_arrivals_queue->next && (land_arrivals_queue->next->flight.a_flight->init <= time); i++){
@@ -235,12 +241,12 @@ void* dispatcher_func(void* nothing){
             pthread_cond_broadcast(&(shm_struct->listener));
             any_to_fly_flag = 1;
         }
-        pthread_mutex_unlock(&mutextest); 
+        pthread_mutex_unlock(&mutextest);
         if(any_to_fly_flag){
             sem_wait(runway_mutex);
         }
         sem_wait(runway_mutex);
-        sem_post(runway_mutex);       
+        sem_post(runway_mutex);
     }
 }
 
@@ -252,10 +258,10 @@ void cleanup(int signo) {
     pthread_cancel(dispatcher);
 
     //pthread_join(dispatcher,NULL);
-    
+
     pthread_cancel(talker);
     pthread_join(talker,NULL);
-    
+
     delete_queue(fly_departures_queue);
     delete_queue(land_arrivals_queue);
     delete_queue(emergency_arrivals_queue);

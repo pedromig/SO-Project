@@ -1,0 +1,4 @@
+DEPARTURE TP34 init: 20 takeoff: 116
+DEPARTURE TP34 init: 50 takeoff: 115 
+DEPARTURE TP34 init: 49 takeoff: 112 
+DEPARTURE TP34 init: 32 takeoff: 254
