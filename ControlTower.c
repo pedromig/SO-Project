@@ -191,7 +191,7 @@ void *flights_updater(void *nothing) {
 
         while (current) {
             --(current->flight.a_flight->fuel);
-            printf("Fuel : %d   %d\n", current->flight.a_flight->fuel, current->flight.a_flight->init);
+            printf("Fuel : %d   init: %d\n", current->flight.a_flight->fuel, current->flight.a_flight->init);
             if ((current->flight.a_flight->fuel) <=
                 (4 + (current->flight.a_flight->init - current->flight.a_flight->eta) + configs.landing_time)) {
                 sem_wait(shm_mutex);
@@ -209,7 +209,7 @@ void *flights_updater(void *nothing) {
         while (current) {
             ++flight_counter;
             --(current->flight.a_flight->fuel);
-            printf("Fuel esp: %d    %d\n", (current->flight.a_flight->fuel), current->flight.a_flight->init);
+            printf("Fuel esp: %d    init: %d\n", (current->flight.a_flight->fuel), current->flight.a_flight->init);
             if ((current->flight.a_flight->fuel) == 0) {
                 log_info(NULL, "Zero Fuel!!", ON);
                 sem_wait(shm_mutex);
