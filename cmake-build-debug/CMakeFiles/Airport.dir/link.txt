@@ -1,0 +1,1 @@
+/usr/bin/cc  -pthread -g   CMakeFiles/Airport.dir/logging.c.o CMakeFiles/Airport.dir/ControlTower.c.o CMakeFiles/Airport.dir/SimulationManager.c.o CMakeFiles/Airport.dir/SimulationUtils.c.o  -o Airport 

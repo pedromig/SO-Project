@@ -1,0 +1,3 @@
+/home/pedro/Documents/Universidade/2ºano/1ºSemestre/SO/Project/SO-Project/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/pedro/Documents/Universidade/2ºano/1ºSemestre/SO/Project/SO-Project/cmake-build-debug/CMakeFiles/Airport.dir
+/home/pedro/Documents/Universidade/2ºano/1ºSemestre/SO/Project/SO-Project/cmake-build-debug/CMakeFiles/edit_cache.dir

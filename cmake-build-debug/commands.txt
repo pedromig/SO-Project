@@ -1,0 +1,8 @@
+DEPARTURE TP34 init: 20 takeoff: 116
+DEPARTURE TP36 init: 50 takeoff: 115
+DEPARTURE TP32 init: 49 takeoff: 112
+DEPARTURE TP39 init: 32 takeoff: 254
+ARRIVAL TP87 init: 90 eta: 100 fuel: 101
+ARRIVAL TP45 init: 100 eta: 150 fuel: 200
+ARRIVAL TP12 init: 152 eta: 115  fuel: 170
+ARRIVAL TP91 init: 97 eta: 10 fuel: 20
